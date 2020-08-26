@@ -1,0 +1,826 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+    toc: true # table of content true
+    toc_depth: 3 # up to threee depths of headings
+  word_document: default
+  pdf_document: default
+  html_notebook: default
+---
+
+---
+title: 'Rapport Projet tutoré- DU Bioinformatique Intégrative'
+author: "Sandrine AUGER"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    fig_caption: yes
+    highlight: zenburn
+    number_sections: no
+    self_contained: no
+    theme: cerulean
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    fig_caption: yes
+    highlight: zenburn
+    toc: yes
+    toc_depth: 3
+font-import: http://fonts.googleapis.com/css?family=Risque
+font-family: Garamond
+subtitle: DUBii 2020 - Module 6 - Evaluation
+editor_options:
+  chunk_output_type: console
+transition: linear
+---
+
+# Description du projet
+
+
+### Loading the used R libraries
+
+```{r settings, include=FALSE, echo=FALSE, eval=TRUE}
+message("Loading required libraries")
+
+requiredLib <- c(
+  "knitr", # pour gérer les outputs
+  "rpart", # implémentation des méthodes de construction d'arbres de décision inspirées de l'approche CART
+  "rpart.plot",
+  "tidyverse",# opinionated collection of R packages designed for data science (ggplot2, dplyr, forcats(gestion des factors), ...)
+  "ComplexHeatmap",
+  "gplots",
+  "caret",
+  "mixOmics",
+  "e1071",
+  "FactoMineR",# pour faire ACP
+  "factoextra",# pour améliorer les représentations graphiques de base du package FactoMineR
+  "corrplot",# à loader avec factoextra
+# les deux packages FactoMineR (pour l’analyse) et factoextra (pour la visualisation, des données, basée sur ggplot2)
+  "dplyr",
+  "WGCNA"
+  )
+for (lib in requiredLib) {
+  if (!require(lib, character.only = TRUE)) {
+    install.packages(lib, )
+  }
+  require(lib, character.only = TRUE)
+}
+
+options(width = 300)
+# options(encoding = 'UTF-8')
+knitr::opts_chunk$set(
+  fig.width = 7, fig.height = 5, 
+  fig.path = 'figures/learning_',
+  fig.align = "center", 
+  size = "tiny", 
+  echo = FALSE, 
+  eval = TRUE, 
+  warning = FALSE, 
+  message = FALSE, 
+  results = TRUE, 
+  comment = "")
+
+options(scipen = 12) ## Max number of digits for non-scientific notation
+# knitr::asis_output("\\footnotesize")
+
+## Install the library if needed then load it
+required.bioconductor <- c("DESeq2", "edgeR")
+for (pkg in required.bioconductor) {
+  message("Loading bioconductor package\t", pkg)
+  if (!require(pkg, character.only = TRUE)) {
+    message("Installing bioconductor package\t", pkg)
+    source("http://bioconductor.org/biocLite.R")
+    biocLite(pkg)
+    require(pkg, character.only = TRUE)
+  }
+}
+```
+
+# 1. Traitement des données RNAseq
+
+Les données fournies sont des données brutes issues du séquençage à haut débit par la technologie Illumina à partir d'une extrémité ("single-end sequencing"). Le séquençage a été effectué sur la plateforme I2BC (Paris-Saclay). Les 18 fichiers fastqc ont été transférés sur le cluster de la plateforme Migale. 
+
+### Organisation de l'espage de travail sur la plateforme Migale
+**Personal space: save_home/saauger/**
+The space for configuration files (.ssh, .bashrc , … ) and personal saved data, not intended for computation. Backup is active on this space.
+**Personal work space: work_home/saauger/**
+Personal space for work, secured, but without backup, for computational data, results data. 
+
+### Création des dossiers de travail
+
+```{bash, eval=FALSE}
+mkdir -p save_home/saauger/projet_tutore
+mkdir -p save_home/saauger/projet_tutore/FASTQ CLEANING MAPPING QC
+mkdir -p work_home/saauger/projet_tutore
+mkdir -p work_home/saauger/projet_tutore/QC
+```
+### Transfert des scripts sur Migale depuis une fenêtre shell
+
+```{bash, eval=FALSE}
+scp FASTQC.sh saauger@migale.jouy.inra.fr:/save_home/saauger/projet_tutore
+```
+
+### Conversion des scripts Windows sous Unix
+Les scripts bash sont crées sur l'ordinateur avec Notepad puis transférés sur le cluster Migale. Il convient de convertir les scripts provenant de Windows en mode Unix. 
+
+```{bash, eval=FALSE}
+dos2unix mon_script.sh
+```
+
+## 1.1. Contrôle qualité des données brutes
+
+### 1.1.1. Utilisation de l'outil FastQC
+**Recherche des options disponibles pour un outil dans l'environnement conda :**
+```{bash, eval=FALSE}
+conda info --envs
+conda activate fastqc-0.11.8
+fastqc --help
+conda deactivate
+```
+
+La qualité de séquençage est vérifiée avec le programme FastQC (Babraham Institute, Cambridge) en lançant le script FASTQC.sh. 
+
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.08.14
+# This script is called by FASTQC-v4.sh
+# To start this job : qsub FASTQC-v4.sh
+###################################
+######################
+# Part I: directive
+######################
+
+# Options
+# Job name (name that shows up in queue)
+# without -N : job name = script name
+#$ -N myFASTQC
+# Specify which shell to use
+#$ -S /bin/bash
+# Lance la commande depuis le repertoire ou est lance le script
+#$ -cwd
+# Pass all environment variables to the job
+#$ -V
+# output file 
+#$ -o myFASTQC.out
+# error file
+#$ -e myFASTQC.err
+# email addresses to send status emails 
+#$ -M sandrine.auger@inrae.fr
+# Sends a status email based on any combination of a,b,e. b is when job begins, e is when job ends, and a is if job is aborted.
+#$ -m abe
+# Utiliser 4 CPUs
+#$ -pe thread 4
+
+###########
+# Part II: computation
+###########
+## conda info --envs
+
+conda activate fastqc-0.11.8
+
+data=(./FASTQ/*.fastq.*)
+
+output_dir=(./QC)
+
+for fname in ${data[@]}
+do
+	fastqc ${fname} -o ${output_dir} -t 4
+done
+
+conda deactivate
+```
+
+Le temps mis pour exécuter ce job est de 37 minutes.
+
+### 1.1.2. Compilation des rapports avec l'outil MultiQC
+L'outil MultiQC compile un rapport HTML. MultiQC: Summarize analysis results for multiple tools and samples in a single report. Philip Ewels, Måns Magnusson, Sverker Lundin and Max Käller. Bioinformatics (2016).
+
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.08.14
+# This script is called by multiqc.sh
+# To start this job : qsub multiqc.sh
+###################################
+## One report to rule them all : MultiQC
+## Run MultiQC to obtain a report with fastqc and fastp results
+#####################
+# Part I: directive
+######################
+
+# Options
+# Job name (name that shows up in queue)
+# without -N : job name = script name
+#$ -N mymultiqc
+# Specify which shell to use
+#$ -S /bin/bash
+# Lance la commande depuis le repertoire ou est lance le script
+#$ -cwd
+# Pass all environment variables to the job
+#$ -V
+# output file 
+#$ -o mymultiqc.out
+# error file
+#$ -e mymultiqc.err
+# email addresses to send status emails 
+#$ -M sandrine.auger@inrae.fr
+# Sends a status email based on any combination of a,b,e. b is when job begins, e is when job ends, and a is if job is aborted.
+#$ -m abe
+# Utiliser 4 CPUs
+#$ -pe thread 4
+
+###########
+# Part II: computation
+###########
+## conda info --envs
+
+conda activate multiqc-1.8
+
+cd ./QC
+multiqc -d . -i "Rapport MultiQC des 18 echantillons" -o .
+conda deactivate
+
+```
+Le temps mis pour exécuter ce job est de moins de 1 minute.
+
+### 1.1.3. Résultats
+Le **nombre de lecture varie entre 25.3 et 33.4 millions**.
+Le nombre de lecture unique est d'environ 20 % et le nombre de **lectures dupliquées** est d'environ 80 %.
+Tous les échantillons ont des séquences d’une seule longueur (**75 nts**), avec un **GC% = 41**.
+La valeur moyenne de qualité pour chaque position de base dans la lecture est **Phred Scor e= 35**.
+Le pourcentage d’appels de base à chaque position pour lequel a été appelé N est très faible **(N < 0.01%)**.
+**Le contenu des séquences ayant un adaptateur est de moins de 1%**
+Conclusion : données de bonne qualité, avec une bonne profondeur, les adaptateurs ont déjà été enlevés.
+
+![fatqc](~/projet_tutore/figures/exemple_fastqc.png)
+
+## 1.2. Preprocess : nettoyage et filtrage des séquences avec fastp
+
+L'outil de prétraitement fastp permet d'enlever les adaptateurs, de filtrer par la qualité et la longueur des reads.
+Chen S, Zhou Y, Chen Y, Gu J "fastp: an ultra-fast all-in-one FASTQ preprocessor." Bioinformatics. 2018 Sep 1;34(17):i884-i890.
+
+### 1.2.1. Gestion du nom des fichiers de sortie
+
+```{bash, eval=FALSE}
+basename --help
+man basename
+# exemlple:
+basename MAPPING/I213_C_t33_S12.fastp.fastq.gz_mem.sam.sorted.bam .fastp.fastq.gz_mem.sam.sorted.bam
+#resultat : I213_C_t33_S12
+# afficher NAME sans le précéder des composants des noms de répertoire
+```
+
+Le but est de renommer les fichiers de sortie en gardant uniquement la première partie du nom du fichier d'entrée fastqc. La commande cut -d"_" -f1-4 permet de sélectionner les 4 premiers champs dans les noms des fichiers. Par exemple, I213_C_t53_S18_all_R1_001.fastq.gz devient I213_C_t53_S18_fastq.gz. Je fais un test en lançant le script renommer.sh.
+
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.08.14
+# This script is called by renommer.sh
+# To start this job : qsub renommer.sh
+###################################
+######################
+# Part I: directive
+######################
+
+# Options
+# Job name (name that shows up in queue)
+# without -N : job name = script name
+#$ -N myrenommer
+# Specify which shell to use
+#$ -S /bin/bash
+# Lance la commande depuis le repertoire ou est lance le script
+#$ -cwd
+# Pass all environment variables to the job
+#$ -V
+# output file 
+#$ -o myrenommer.out
+# error file
+#$ -e myrenommer.err
+# email addresses to send status emails 
+#$ -M sandrine.auger@inrae.fr
+# Sends a status email based on any combination of a,b,e. b is when job begins, e is when job ends, and a is if job is aborted.
+#$ -m abe
+# Utiliser 4 CPUs
+#$ -pe thread 4
+
+###########
+# Part II: computation
+###########
+
+data=(./ESSAI/*.fastq.*)
+
+for fname in ${data[@]}
+do 
+  name="$(basename $fname)"
+	shortname="$(echo "$name" | cut -d"_" -f1-4)"
+	cp ${fname} ESSAI/${shortname}_fastq.gz
+done
+```
+
+### 1.2.2. Trimming et filtrage avec l'outil fastp
+
+Le trimming des adaptateurs et leur autodétection sont activés par defaut.
+
+QUALITY FILTER 
+fastp prend en charge la découpe de fenêtre coulissante par lecture en évaluant les scores de qualité moyens dans la fenêtre coulissante. **-W, --cut_window_size** range 1-1000, default=4.
+**-u, --unqualified_percent_limit**, how many percents of bases are allowed to be unqualified (0~100). Default 40 means 40%.
+**-q, --qualified_quality_phre**, the quality value that a base is qualified. Default 15 means phred quality >=Q15 is qualified.
+La limite maximale du nombre de **N** de 5 par read est laissée par défaut, elle peut être modifiée par l'option -n(-n_base_limit).
+L'outil fastp trimme les **polyG** (>= 10 bases) en fin de reads. In Illumina NextSeq/NovaSeq data, polyG can happen in read tails since G means no signal in the Illumina two-color systems. 
+LENGTH FILTER
+**-l, --lenght_required**, seuil de longueur requis, par defaut = 15, reads shorter than lenght_limit will be discarded. 
+La longueur de l'adaptateur fait 32 nts, la longueur des reads trimmés va diminuer fortement.
+
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.08.14
+# This script is called by FASTP-ALL.sh
+# To start this job : qsub FASTP-ALL.sh
+###################################
+#####################
+# Part I: directive
+######################
+# Options
+# Job name (name that shows up in queue)
+# without -N : job name = script name
+#$ -N myFASTP
+# Specify which shell to use
+#$ -S /bin/bash
+# Lance la commande depuis le repertoire ou est lance le script
+#$ -cwd
+# Pass all environment variables to the job
+#$ -V
+# output file 
+#$ -o myFASTP-ALL.out
+# error file
+#$ -e myFASTP-ALL.err
+# email addresses to send status emails 
+#$ -M sandrine.auger@inrae.fr
+# Sends a status email based on any combination of a,b,e. b is when job begins, e is when job ends, and a is if job is aborted.
+#$ -m abe
+# Utiliser 6 CPUs
+#$ -pe thread 6
+###########
+# Part II: computation
+###########
+## conda info --envs
+## le trimming des adaptateurs est active par defaut
+## -W, --cut_window_size range 1-1000, default=4
+## -q, --qualified_quality_phre = qualite par base, par defaut le seuil de qualite = 15
+## il qualifie une base si sa qualite phred (phred33) est > 15
+## on peut essayer avec -q 25
+## -l, --lenght_required, seuil de longueur requis, par defaut = 15, reads shorter than lenght_limit will be discarded
+## la longueur de l'adaptateur fait 32 nts, la longueur des reads trimmes va diminuer fortement
+
+conda activate fastp-0.20.0
+ 
+data=(FASTQ/*.fastq.*)
+
+for fname in ${data[@]}
+ do
+  name="$(basename $data)"
+  shortname="$(echo "$name" | cut -d"_" -f1-4)"
+  fastp -i ${fname} -o CLEANING/${shortname}_fastp.fastq.gz \
+  -j CLEANING/${shortname}_fastp.json \
+  -h CLEANING/${shortname}_fastp.html \
+  -t 4
+done
+conda deactivate
+```
+
+#### Vérification taille des fichiers
+```{bash, eval=FALSE}
+ls -lrh
+```
+
+### 1.2.3. FastQC et MultiQC après le trimming et le filtrage
+
+Les fichiers de sortie fastp.fastq.gz sont analysés avec FastQC. Puis, une compilation des rapports est effectuée avec MultiQC.
+
+**Globalement, plus de 99,5% des reads ont passé les filtres, 0.4% avait une mauvaise qualité et 0.04% une longueur trop courte.**
+
+## 1.3. Mapping 
+BWA (le Burrows-Wheeler Aligner) est un aligneur rapide à lecture courte. Il utilise la transformation burrows-wheeler pour effectuer l'alignement de manière efficace en termes de temps et de mémoire.
+
+### 1.3.1. Construction de l'index
+The complete genome sequence of *S. thermophilus* strain N4L has been deposited in GenBank under the accession no. LS974444 (BioProject no. PRJEB27286) (Proust *et al.*, 2018). La séquence du génome est récupérée sur NCBI puis transférée dans le dossier save_home/saauger/projet_tutore/MAPPING.
+
+```{bash, eval=FALSE}
+# Options
+# Job name (name that shows up in queue)
+# without -N : job name = script name 
+#$ -N mybwaindex
+# Specify which shell to use
+#$ -S /bin/bash
+# Lance la commande depuis le repertoire ou est lance le script
+#$ -cwd
+# Pass all environment variables to the job
+#$ -V
+# output file 
+#$ -o mybwaindex.out
+# error file
+#$ -e mybwaindex.err
+# email addresses to send status emails 
+#$ -M sandrine.auger@inrae.fr
+# Sends a status email based on any combination of a,b,e. b is when job begins, e is when job ends, and a is if job is aborted.
+#$ -m abe
+# Utiliser 4 CPUs
+#$ -pe thread 4
+
+###########
+# Part II: computation
+###########
+conda activate bwa-0.7.17
+bwa index MAPPING/sequence.fasta
+conda deactivate
+```
+
+### 1.3.2. Mapping sur le génome
+
+#### Test script pour 1 fichier
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.08.25
+# This script is called by bwamem_v2.sh
+# To start this job : qsub bwamem_v2.sh
+###################################
+######################
+# Part I: directive
+######################
+# Options
+# Job name (name that shows up in queue)
+# without -N : job name = script name
+#$ -N mybwamem_v2
+# Specify which shell to use
+#$ -S /bin/bash
+# Lance la commande depuis le reÂ©pertoire ou est lance le script
+#$ -cwd
+# Pass all environment variables to the job
+#$ -V
+# output file 
+#$ -o mybwamem_v2.out
+# error file
+#$ -e mybwamem_v2.err
+# email addresses to send status emails 
+#$ -M sandrine.auger@inrae.fr
+# Sends a status email based on any combination of a,b,e. b is when job begins, e is when job ends, and a is if job is aborted.
+#$ -m abe
+# Utiliser 8 CPUs
+#$ -pe thread 8
+###########
+# Part II: computation
+###########
+## -t INT        number of threads [1]
+## -k INT        minimum seed length [19]
+
+
+conda activate bwa-0.7.17
+
+reference="./MAPPING/sequence.fasta"
+
+data=(./CLEANING/I213_B_t41_S4.fastp.fastq.gz)
+
+for fname in ${data}
+do
+bwa mem -t 8 ${reference} ${fname} > ./MAPPING/I213_B_t41_S4.fastp.fastq.gz_mem.sam
+done
+
+conda deactivate
+```
+#### Script pour tous les fichiers
+
+```{bash, eval=FALSE}
+#!/bin/bash
+# Indication des options
+#$ -pe thread 32
+
+conda activate bwa-0.7.17
+
+reference="./MAPPING/sequence.fasta"
+
+data=(./CLEANING/*.fastp.fastq.gz)
+
+for fname in ${data[@]}
+do
+bwa mem -t 32 ${reference} ${fname} > ./MAPPING/${fname}_mem.sam
+done
+
+conda deactivate
+```
+
+Les outputs sont des fichiers .sam. Ces fichiers contiennent toutes les informations sur la position de chaque read sur le génome de référence. L'outil SAMTools est ensuite utilisé pour convertir les fichiers .sam en .bam, les trier et les indexer.
+
+### 1.3.3. Conversion des fichiers de sortie
+
+Samtools est un ensemble de logiciels utilitaires qui permettent de manipuler des alignements au format SAM/BAM. Il peut importer et exporter les données depuis le format SAM (Sequence Alignment/Map) et permet de trier, mélanger, indexer, récupérer les lectures de n'importe quelle région rapidement.
+Le format BAM est le résultat de la compression du format SAM (algorithme BGZF par Bob Handsaker) et constitue une version binarisée de SAM ce qui la rend plus rapide pour l'accès aux données.
+
+**samtools view** : imprime dans la sortie standard les alignements (ou portions) demandés à partir d'un SAM ou d'un BAM
+**samtools sort** : trie les alignements (par les coordonnées de départ) d'un fichier BAM et produit un BAM trié. Opération requise pour certains programmes (par exemple le visualisateur IGV)
+**samtools index** : produit un fichier d'index (.bai) à partir d'un fichier BAM trié : samtools index sequence.mem.sorted.bam
+**samtools flagstat** : pour avoir des statistiques : sequence.mem.unsorted.bam
+**samtools idxstats** : sequence.mem.unsorted.bam
+
+#### Conversion des fichiers .sam en .bam avec samtools view
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.08.25
+# This script is called by samtools_view.sh
+# To start this job : qsub samtools_view.sh
+###################################
+######################
+# Part I: directive
+######################
+#$ -N mysamttols_sort
+#$ -S /bin/bash
+#$ -cwd
+#$ -V
+#$ -o mysamtools_view.out
+#$ -e mysamtools_view.err
+#$ -M sandrine.auger@inrae.fr
+#$ -m abe
+# Utiliser 8 CPUs
+#$ -pe thread 8
+###########
+# Part II: computation
+###########
+
+# samtools view, visualize BAM content in SAM format
+# -b indique le format de sortie en .bam
+# -h inclure le header
+# -S le format de fichier d'entrée est détecté directement
+conda activate samtools-1.10
+data=(./MAPPING/*_mem.sam)
+
+for fname in ${data[@]}
+do 
+samtools view -hbS ${fname} > ${fname}.unsorted.bam
+done
+conda deactivate
+```
+
+#### Conversion des fichiers .sam en .bam et tri des alignements avec samtools sort
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.08.25
+# This script is called by samtools_sort.sh
+# To start this job : qsub samtools_sortsh
+###################################
+######################
+# Part I: directive
+######################
+#$ -N mysamttols_sort
+#$ -S /bin/bash
+#$ -cwd
+#$ -V
+#$ -o mysamtools_sort.out
+#$ -e mysamtools_sort.err
+#$ -M sandrine.auger@inrae.fr
+#$ -m abe
+# Utiliser 8 CPUs
+#$ -pe thread 8
+###########
+# Part II: computation
+###########
+
+#the command should be samtools sort -o sorted.bam initial.bam
+
+conda activate samtools-1.10
+data=(./MAPPING/*_mem.sam)
+
+for fname in ${data[@]}
+do 
+samtools sort  -o ${fname}.sorted.bam ${fname}
+done
+
+conda deactivate
+```
+
+Le temps mis pour ce job est de 41 minutes.
+
+### 1.3.4. Génération de la table de comptage
+Une attention particulière doit être apportée pour décider comment traiter les lectures qui s'alignent ou se chevauchent avec plus d'un gène. Le script HTseq-count est utilisé dans ce projet. S Anders, T P Pyl, W Huber: HTSeq — A Python framework to work with high-throughput sequencing data. bioRxiv 2014. doi: 10.1101/002824. https://htseq.readthedocs.io/en/release_0.11.1/count.html
+
+
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.08.26
+# This script is called by htseq_count.sh
+# To start this job : qsub hetseq_count.sh
+###################################
+######################
+# Part I: directive
+######################
+#$ -N mysamttols_sort
+#$ -S /bin/bash
+#$ -cwd
+#$ -V
+#$ -o myhtseq.out
+#$ -e myshtseq.err
+#$ -M sandrine.auger@inrae.fr
+#$ -m abe
+# Utiliser 8 CPUs
+#$ -pe thread 8
+###########
+# Part II: computation
+###########
+conda activate htseq-0.12.4
+
+htseq-count --format=bam --type=cds --idattr=ID --order=pos ./MAPPING/*.sorted.bam ./MAPPING/sequence.gff3 > ./features_htseq_counts.txt
+
+conda deactivate
+# -f <format>, --format=<format>
+# Format of the input data. Possible values are sam (for text SAM files) and bam (for binary BAM files). Default is sam.
+# -s <yes/no/reverse>, --stranded=<yes/no/reverse>
+#  whether the data is from a strand-specific assay (default: yes)
+# For stranded=yes and single-end reads, the read has to be mapped to the same strand as the feature.
+# -m <mode>, --mode=<mode>
+# Mode to handle reads overlapping more than one feature. Possible values for <mode> are union, intersection-strict and intersection-nonempty (default: union). With union mode, it counts reads that map to a single location (uniquely mapping).
+# -i <id attribute>, --idattr=<id attribute>
+# GFF attribute to be used as feature ID. Several GFF lines with the same feature ID will be considered as parts of the same feature. The feature ID is used to identity the counts in the output table. The default, suitable for RNA-Seq analysis using an Ensembl GTF file, is gene_id.
+# Dans ton GFF il n’y pas de gene_id, Tu peux utiliser ID ou locus_tag, a toi de vérifier si ce sont des identifiants unqiues pour les CDS et surtout un identifiant qui te permettra ensuite de retomber sur tes pattes pour l’intégration des données protéomiques.
+```
+
+## 1.4. Analyses statistiques descriptives
+Les analyses sont réalisées sur rstudio installé sur le cluster de l'IFB.
+https://rstudio.cluster.france-bioinformatique.fr/
+
+### 1.4.1. Chargement des librairies sous R 
+
+```{r load_libraries}
+library("knitr")
+library("tidyverse")
+library("FactoMineR") # pour faire ACP
+library("factoextra") # pour améliorer les représentations graphiques de base du package FactoMineR
+library("corrplot") # à loader avec factoextra
+# les deux packages FactoMineR (pour l’analyse) et factoextra (pour la visualisation, des données, basée sur ggplot2)
+
+```
+
+### 1.4.2. Création des répertoires de travail
+
+```{r eval=FALSE}
+# remove(list=ls())
+# get current working directory
+# getwd()
+# créer un vecteur avec les directories
+## Create a vector with all the user-specific directories, which can be exported in the report afterwards
+dir <- vector()
+
+## Specify the local directory for the personal work
+dir["base"] <- "~/projet_tutore"  # Adapt to yours
+
+## Directory with the results of all analyses
+dir["results"] <- file.path(dir["base"], "results")
+dir.create(dir["results"], showWarnings = FALSE, recursive = TRUE)
+
+## Specify a local directory to download the data
+dir["RNA"] <- file.path(dir["base"], "data", "RNA")
+message("Creating local data directory for RNA data", dir["RNA"])
+dir.create(dir["RNA"], showWarnings = FALSE, recursive = TRUE)
+dir["proteome"] <- file.path(dir["base"], "data", "proteome")
+message("Creating local data directory for proteome data", dir["proteome"])
+dir.create(dir["proteome"], showWarnings = FALSE, recursive = TRUE)
+
+dir["figures"] <- file.path(dir["base"], "figures")
+dir.create(dir["figures"], showWarnings = FALSE, recursive = TRUE)
+
+# imprimer la table des directories
+kable(data.frame(dir), col.names="Directory", caption ="Directories")
+#list.files(projet_tutore)
+```
+
+
+### 1.4.3. Chargement des données
+
+**Chargement des données d'expression**
+rawcount <- read.table()
+
+"expression"="log2_norm_counts_DESeq2.tsv" #expression values
+
+
+```{r eval=FALSE}
+# Load expression table
+table.expr <- read.csv(file = file.path(dir["RNA"], "raw_counts.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1) # identify col 1 as containing row names
+
+message("Loaded expression table with " , 
+        nrow(table.expr), " rows (genes) x ", 
+        ncol(table.expr), " columns (samples)")
+
+# which(is.na(table.expr))
+
+```
+
+
+**Chargement de la table descriptive des échantillons**
+
+```{r eval=FALSE}
+metadata <- read.csv(file = file.path(dir["RNA"], "metadata.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1)
+#dim(metadat)
+#names(metadata)
+#head(metadata)
+#class(metadata)
+```
+
+**Association d'une couleur pour chaque classe d'échantillons**
+
+```{r eval=FALSE}
+#Define sample colors
+class.colors <- c("B_t3"="brown", "B_t4"="darkgreen", "B_t5"="blue", "C_t3"="violet", "C_t4"="grey", "C_t5"="red")
+metadata$color <- class.colors[metadata$classe]
+# table(metadata$color)
+```
+```{r}
+print(metadata)
+```
+
+
+##### classer les classes ensemble (voir trame exo module 3)
+
+
+```{r eval=FALSE}
+#### Reorder samples in order to group them by class ####
+sampleNamesByClass <- rownames(metadata)[order(metadata$classe)]
+length(sampleNamesByClass)
+BIC.expr <- BIC.expr[, sampleNamesByClass]
+BIC.sample.classes <- BIC.sample.classes[sampleNamesByClass, ]
+
+kable(dataFiles, col.names = "File", caption = "Data files")
+```
+
+
+
+1.4.4. Nombre de gènes exprimés dans chaque échantillon
+
+```{r eval=FALSE}
+x <- log2Filtered
+nb_expressed_genes <- apply(x, 2, function(x){length(which(x>1))})
+kable((as.data.frame(nb_expressed_genes)), 
+      col.names = "nb_expressed_genes", 
+      caption = "Table of the number of expressed genes in each sample")
+```
+#### Global statistics on all samples 
+
+```{r computed additional parameters, eval=FALSE}
+## Statistics on log2Fileterd data, all samples together
+## y <- unlist(log2Filtered) # Regroup all counts in a vector to compute statistics
+y <- unlist(rawValues)
+count.stats <- data.frame(
+  mean = mean(y),
+  sd = sd(y),
+  iqr = IQR(y),
+  min = min(y),
+  P05 = quantile(y, probs = 0.05),
+  Q1 = quantile(y, probs = 0.25),
+  median = quantile(y, probs = 0.5),
+  Q3 = quantile(y, probs = 0.75),
+  P95 = quantile(y, probs = 0.95),
+  P99 = quantile(y, probs = 0.99),
+  max = max(y)
+  )
+# View(count.stats) # for quick check in R interface
+kable(t(count.stats), 
+      caption = "Statistics on log2Filtered values (all samples together)", 
+      format.args = list(decimal.mark = '.', big.mark = ","), digits = 2,
+      col.names = "Parameter value")
+```
+#### Global distribution of raw counts 
+
+```{r eval=FALSE}
+### Histogram of raw counts (log2Values)
+hist(unlist(log2Values), breaks=100) # Regroup all counts in a vector
+# Notons d’emblée le pic très élevé à gauche, qui correspond à toutes les observations nulles. Sur l’axe X, il apparait à la valeur −3.3, qui correspond à log2(ϵ)=log2(0.1).
+```
+
+#### Distribution of raw counts for each sample
+
+```{r boxplot with log2filtered data eval=FALSE}
+boxplot(log2Filtered, 
+        las=2, ylab="raw counts (log2filtered)", col="gray50", pch=16, main = "Distribution of raw counts", cex.axis = 0.8) 
+```
+#### Représentaiotn mean versus variance rawcount, log2, rlog (voir Deloger et Servant)
+
+
+
+Fonction R: PCA() [FactoMineR].
+
+
