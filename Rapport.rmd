@@ -1,13 +1,12 @@
 ---
 title: "R Notebook"
 output:
-  html_document:
-    df_print: paged
-    toc: true # table of content true
-    toc_depth: 3 # up to threee depths of headings
-  word_document: default
   pdf_document: default
+  word_document: default
+  html_document: 
+    toc: yes
   html_notebook: default
+  extra_dependencies: ["flafter"]
 ---
 
 ---
@@ -20,7 +19,7 @@ output:
     fig_caption: yes
     highlight: zenburn
     number_sections: no
-    self_contained: no
+    self_contained: yes
     theme: cerulean
     toc: yes
     toc_depth: 3
@@ -38,67 +37,13 @@ editor_options:
 transition: linear
 ---
 
-# Description du projet
 
-
-### Loading the used R libraries
-
-```{r settings, include=FALSE, echo=FALSE, eval=TRUE}
-message("Loading required libraries")
-
-requiredLib <- c(
-  "knitr", # pour gérer les outputs
-  "rpart", # implémentation des méthodes de construction d'arbres de décision inspirées de l'approche CART
-  "rpart.plot",
-  "tidyverse",# opinionated collection of R packages designed for data science (ggplot2, dplyr, forcats(gestion des factors), ...)
-  "ComplexHeatmap",
-  "gplots",
-  "caret",
-  "mixOmics",
-  "e1071",
-  "FactoMineR",# pour faire ACP
-  "factoextra",# pour améliorer les représentations graphiques de base du package FactoMineR
-  "corrplot",# à loader avec factoextra
-# les deux packages FactoMineR (pour l’analyse) et factoextra (pour la visualisation, des données, basée sur ggplot2)
-  "dplyr",
-  "WGCNA"
-  )
-for (lib in requiredLib) {
-  if (!require(lib, character.only = TRUE)) {
-    install.packages(lib, )
-  }
-  require(lib, character.only = TRUE)
-}
-
-options(width = 300)
-# options(encoding = 'UTF-8')
-knitr::opts_chunk$set(
-  fig.width = 7, fig.height = 5, 
-  fig.path = 'figures/learning_',
-  fig.align = "center", 
-  size = "tiny", 
-  echo = FALSE, 
-  eval = TRUE, 
-  warning = FALSE, 
-  message = FALSE, 
-  results = TRUE, 
-  comment = "")
-
-options(scipen = 12) ## Max number of digits for non-scientific notation
-# knitr::asis_output("\\footnotesize")
-
-## Install the library if needed then load it
-required.bioconductor <- c("DESeq2", "edgeR")
-for (pkg in required.bioconductor) {
-  message("Loading bioconductor package\t", pkg)
-  if (!require(pkg, character.only = TRUE)) {
-    message("Installing bioconductor package\t", pkg)
-    source("http://bioconductor.org/biocLite.R")
-    biocLite(pkg)
-    require(pkg, character.only = TRUE)
-  }
-}
+```{bash, eval = FALSE}
+Avec self_contained: no, un dossier est créé dans le même emplacement que le .html ; si tu déplaces uniquement le *.html dans un autre dossier (ou que tu l'envoie par email, ou encore que tu le déposes sur le moodle), lorsque tu ouvriras le fichier tu n'auras plus les images, la mise en page, etc. Il faut envoyer le dossier associé.Avec self_contained: yes , tout est inclus dans le fichier html, qui sera plus gros, mais plus simple à partager.
 ```
+
+
+# Description du projet
 
 # 1. Traitement des données RNAseq
 
@@ -259,8 +204,6 @@ Le pourcentage d’appels de base à chaque position pour lequel a été appelé
 **Le contenu des séquences ayant un adaptateur est de moins de 1%**
 Conclusion : données de bonne qualité, avec une bonne profondeur, les adaptateurs ont déjà été enlevés.
 
-![fatqc](~/projet_tutore/figures/exemple_fastqc.png)
-
 ## 1.2. Preprocess : nettoyage et filtrage des séquences avec fastp
 
 L'outil de prétraitement fastp permet d'enlever les adaptateurs, de filtrer par la qualité et la longueur des reads.
@@ -414,7 +357,8 @@ Les fichiers de sortie fastp.fastq.gz sont analysés avec FastQC. Puis, une comp
 BWA (le Burrows-Wheeler Aligner) est un aligneur rapide à lecture courte. Il utilise la transformation burrows-wheeler pour effectuer l'alignement de manière efficace en termes de temps et de mémoire.
 
 ### 1.3.1. Construction de l'index
-The complete genome sequence of *S. thermophilus* strain N4L has been deposited in GenBank under the accession no. LS974444 (BioProject no. PRJEB27286) (Proust *et al.*, 2018). La séquence du génome est récupérée sur NCBI puis transférée dans le dossier save_home/saauger/projet_tutore/MAPPING.
+The complete genome sequence of *S. thermophilus* strain N4L has been deposited in GenBank under the accession no. LS974444 (BioProject no. PRJEB27286) (Proust *et al.*, 2018). La séquence du génome est récupérée sur NCBI puis transférée dans le dossier save_home/saauger/projet_tutore/MAPPING. Le génome de la bactérie yant une longueur de plusieurs millions de paires de bases, et le nombre de reads à aligner sur ce génome étant de plusieurs millions, il faut rendre le processus d’alignement le plus rapide possible. Pour cela, on « divise » le génome en plusieurs parties afin d’optimiser le processus d’alignement. L’indexation est effectuée par la fonction bwa index.
+
 
 ```{bash, eval=FALSE}
 # Options
@@ -446,7 +390,7 @@ bwa index MAPPING/sequence.fasta
 conda deactivate
 ```
 
-### 1.3.2. Mapping sur le génome
+### 1.3.2. Mapping sur le génome (sans les short CDS)
 
 #### Test script pour 1 fichier
 ```{bash, eval=FALSE}
@@ -466,7 +410,7 @@ conda deactivate
 #$ -N mybwamem_v2
 # Specify which shell to use
 #$ -S /bin/bash
-# Lance la commande depuis le reÂ©pertoire ou est lance le script
+# Lance la commande depuis le répertoire ou est lance le script
 #$ -cwd
 # Pass all environment variables to the job
 #$ -V
@@ -521,7 +465,7 @@ done
 conda deactivate
 ```
 
-Les outputs sont des fichiers .sam. Ces fichiers contiennent toutes les informations sur la position de chaque read sur le génome de référence. L'outil SAMTools est ensuite utilisé pour convertir les fichiers .sam en .bam, les trier et les indexer.
+Les outputs sont des fichiers .sam. Ces fichiers contiennent toutes les informations sur la position de chaque read sur le génome de référence. L'outil SAMTools est ensuite utilisé pour convertir les fichiers .sam en .bam (format binaire) et les trier.
 
 ### 1.3.3. Conversion des fichiers de sortie
 
@@ -535,6 +479,7 @@ Le format BAM est le résultat de la compression du format SAM (algorithme BGZF 
 **samtools idxstats** : sequence.mem.unsorted.bam
 
 #### Conversion des fichiers .sam en .bam avec samtools view
+
 ```{bash, eval=FALSE}
 #!/bin/bash
 
@@ -575,6 +520,7 @@ conda deactivate
 ```
 
 #### Conversion des fichiers .sam en .bam et tri des alignements avec samtools sort
+
 ```{bash, eval=FALSE}
 #!/bin/bash
 
@@ -615,50 +561,228 @@ conda deactivate
 
 Le temps mis pour ce job est de 41 minutes.
 
-### 1.3.4. Génération de la table de comptage
-Une attention particulière doit être apportée pour décider comment traiter les lectures qui s'alignent ou se chevauchent avec plus d'un gène. Le script HTseq-count est utilisé dans ce projet. S Anders, T P Pyl, W Huber: HTSeq — A Python framework to work with high-throughput sequencing data. bioRxiv 2014. doi: 10.1101/002824. https://htseq.readthedocs.io/en/release_0.11.1/count.html
+#### Quelques statistiques avec samtools flagstat
 
 
 ```{bash, eval=FALSE}
 #!/bin/bash
 
 ###################################
-# Sandrine Auger, 2020.08.26
-# This script is called by htseq_count.sh
-# To start this job : qsub hetseq_count.sh
+# Sandrine Auger, 2020.09.21
+# This script is called by samtools_flagstat.sh
+# To start this job : qsub samtools_flagstat.sh
 ###################################
 ######################
 # Part I: directive
 ######################
-#$ -N mysamttols_sort
+# Options
+# Job name (name that shows up in queue)
+# without -N : job name = script name
+#$ -N mysamtools_flagstat
+# Specify which shell to use
 #$ -S /bin/bash
+# Lance la commande depuis le répertoire ou est lance le script
 #$ -cwd
+# Pass all environment variables to the job
 #$ -V
-#$ -o myhtseq.out
-#$ -e myshtseq.err
+# output file
+#$ -o mysamtools_flagstat.out
+# error file
+#$ -e mysamtools_flagstat.err
+# email addresses to send status emails
 #$ -M sandrine.auger@inrae.fr
+# Sends a status email based on any combination of a,b,e. b is when job begins, e is when job ends, and a is if job is aborted.
 #$ -m abe
 # Utiliser 8 CPUs
 #$ -pe thread 8
 ###########
 # Part II: computation
 ###########
-conda activate htseq-0.12.4
+## -t INT        number of threads [1]
+## -k INT        minimum seed length [19]
 
-htseq-count --format=bam --type=cds --idattr=ID --order=pos ./MAPPING/*.sorted.bam ./MAPPING/sequence.gff3 > ./features_htseq_counts.txt
+
+conda activate samtools-1.10
+
+
+samtools flagstat ./MAPPING/I213_B_t31_S1.fastp.fastq.gz_mem.sam.sorted.bam
 
 conda deactivate
-# -f <format>, --format=<format>
-# Format of the input data. Possible values are sam (for text SAM files) and bam (for binary BAM files). Default is sam.
-# -s <yes/no/reverse>, --stranded=<yes/no/reverse>
-#  whether the data is from a strand-specific assay (default: yes)
-# For stranded=yes and single-end reads, the read has to be mapped to the same strand as the feature.
-# -m <mode>, --mode=<mode>
-# Mode to handle reads overlapping more than one feature. Possible values for <mode> are union, intersection-strict and intersection-nonempty (default: union). With union mode, it counts reads that map to a single location (uniquely mapping).
-# -i <id attribute>, --idattr=<id attribute>
-# GFF attribute to be used as feature ID. Several GFF lines with the same feature ID will be considered as parts of the same feature. The feature ID is used to identity the counts in the output table. The default, suitable for RNA-Seq analysis using an Ensembl GTF file, is gene_id.
-# Dans ton GFF il n’y pas de gene_id, Tu peux utiliser ID ou locus_tag, a toi de vérifier si ce sont des identifiants unqiues pour les CDS et surtout un identifiant qui te permettra ensuite de retomber sur tes pattes pour l’intégration des données protéomiques.
+
 ```
+
+
+```{bash, resultats flagstat, eval=FALSE}
+31657722 + 0 in total (QC-passed reads + QC-failed reads)
+0 + 0 secondary
+5286 + 0 supplementary
+0 + 0 duplicates
+30928381 + 0 mapped (97.70% : N/A)
+0 + 0 paired in sequencing
+0 + 0 read1
+0 + 0 read2
+0 + 0 properly paired (N/A : N/A)
+0 + 0 with itself and mate mapped
+0 + 0 singletons (N/A : N/A)
+0 + 0 with mate mapped to a different chr
+0 + 0 with mate mapped to a different chr (mapQ>=5)
+```
+
+#### Pour visualiser le mapping avec IGV, il faut le .bam trié et indexé en .bai dans le même répertoire 
+
+```{bash, eval=FALSE}
+#!/bin/bash
+
+###################################
+# Sandrine Auger, 2020.09.21
+# This script is called by samtools_view.sh
+# To start this job : qsub samtools_view.sh
+###################################
+######################
+# Part I: directive
+######################
+# Options
+# Job name (name that shows up in queue)
+# without -N : job name = script name
+#$ -N mysamtools_view
+# Specify which shell to use
+#$ -S /bin/bash
+# Lance la commande depuis le répertoire ou est lance le script
+#$ -cwd
+# Pass all environment variables to the job
+#$ -V
+# output file 
+#$ -o mysamtools_view.out
+# error file
+#$ -e mysamtools_view.err
+# email addresses to send status emails 
+#$ -M sandrine.auger@inrae.fr
+# Sends a status email based on any combination of a,b,e. b is when job begins, e is when job ends, and a is if job is aborted.
+#$ -m abe
+# Utiliser 8 CPUs
+#$ -pe thread 8
+###########
+# Part II: computation
+###########
+## -t INT        number of threads [1]
+## -k INT        minimum seed length [19]
+
+
+conda activate samtools-1.10
+
+samtools index ./MAPPING/I213_B_t31_S1.fastp.fastq.gz_mem.sam.sorted.bam ./MAPPING/I213_B_t31_S1.fastp.fastq.gz_mem.sam.sorted.bam.bai 
+
+conda deactivate
+```
+
+
+
+### 1.3.4. Fusion des fichiers gff sequence.gff3 (génome annoté) + N4L_short_ORFs.gff (contient les infos pour les short CDS)
+Les CDS short ont été obtenues en utilisant l’outil BactGeneShow développé par Pierre Nicolas, qui avait également été utilisé pour le tailling array fait sur *B. subtilis*. Ils sont dans le fichier N4L_short_ORFs.gff.
+
+La première colone du fichier N4L_short_ORFs.gff contient le terme "Genome". Il faut le remplacer par LS974444.1
+
+```{bash, eval=FALSE}
+sed 's/Genome/LS974444.1/g' N4L_short_ORFs.gff > N4L_short_ORFs_rename.gff
+```
+
+Puis on enlève les 4 premières lignes du fichier N4L_short_ORFs_rename.gff qui contiennent des informatiosn générales.
+
+```{bash, eval=FALSE}
+sed '1,4d' N4L_short_ORFs_rename.gff > N4L_short_ORFs_rename_deleted.gff
+```
+
+Puis on fusionne les fichiers sequence.gff3 et N4L_short_ORFs_rename_deleted.gff
+
+```{bash, eval=FALSE}
+cat sequence.gff3 N4L_short_ORFs_rename_deleted.gff > sequence_complete.gff
+```
+
+```{bash, eval=FALSE}
+# L'option -k permet de spécifier la colonne de tri.
+# 4n,4n pour indiquer à la commande sort de commencer le tri sur la deuxième colonne et de l'arrêter à la deuxième colonne, le n indique à sort de traiter cette colonne en tant que champ numérique.
+sort -k4n,4n sequence_complete.gff 
+```
+
+**Toutes les données pour les gènes et les short CDS sont regroupées dans le fichier sequence_complete.gff**
+
+
+### 1.3.5. Génération des tables de comptage pour les CDS
+
+Une attention particulière doit être apportée pour décider comment traiter les lectures qui s'alignent ou se chevauchent avec plus d'un gène. Le comptage est effectué grâce au logiciel « HTSeq » et sa fonction htseq-count. S Anders, T P Pyl, W Huber: HTSeq — A Python framework to work with high-throughput sequencing data. bioRxiv 2014. doi: 10.1101/002824. https://htseq.readthedocs.io/en/release_0.11.1/count.html
+
+**L'outil htseqcount ne fonctionne qu'avec 1 CPU, il n'est pas multithreadé. Donc on réserve uniquement un 1 CPU dans -pe thread.**
+
+**Script pour 1 fichier sur le fichier sequence_complete.gff**
+
+```{bash, eval=FALSE}
+#!/bin/bash
+
+#$ -N myhtseq
+#$ -S /bin/bash
+#$ -cwd
+#$ -V
+#$ -o myhtseq.out
+#$ -e myhtseq.err
+#$ -M sandrine.auger@inrae.fr
+#$ -m abe
+#$ -pe thread 1
+
+unset PYTHONPATH
+conda activate htseq-0.12.4
+
+htseq-count --format=bam --type=CDS --idattr=locus_tag ./MAPPING/I213_B_t31_S1.fastp.fastq.gz_mem.sam.sorted.bam ./MAPPING/sequence_complete.gff > ./MAPPING/I213_B_t31_complete.txt
+
+conda deactivate
+```
+
+**Script pour tous les fichiers**
+
+```{bash, eval=FALSE}
+#!/bin/bash
+
+# lancement du script : qsub htseq_count_all.sh
+#$ -N myhtseq_all
+#$ -S /bin/bash
+#$ -cwd
+#$ -V
+#$ -o myhtseq_all.out
+#$ -e myhtseq_all.err
+#$ -M sandrine.auger@inrae.fr
+#$ -m abe
+#$ -pe thread 1
+
+unset PYTHONPATH # parce qu'il y avait un message d'erreur en lien avec python
+conda activate htseq-0.12.4
+data=(./MAPPING/*.sorted.bam)
+
+for fname in ${data[@]}
+do
+htseq-count --format=bam --type=CDS --idattr=locus_tag ${fname} ./MAPPING/sequence_complete.gff > ./MAPPING/${fname}_complete.txt
+done
+
+conda deactivate
+
+```
+
+On obtient donc en sortie et pour chaque échantillon un fichier contenant les comptages, c’est à dire le nombre de reads alignés sur chaque gène. On doit ensuite réunir les comptages au sein d’une même table.
+Le temps mis pour ce job est de 5 heures.
+
+**Renommer les fichiers**
+
+```{bash, eval=FALSE}
+mv I213_B_t32_S2.fastp.fastq.gz_mem.sam.sorted.bam_complete.txt I213_B_t32_complete.txt
+```
+
+**Optionnel : Insertion d'un nom sur la première ligne des fichiers sous UNIX**
+Je ferai cette étape plus tard sous R.
+
+```{bash, eval=FALSE}
+cat I213_B_t32_complete.txt
+sed -i '1iI213_B_t32' I213_B_t32_complete.txt
+cat I213_B_t32_complete.txt
+```
+
 
 ## 1.4. Analyses statistiques descriptives
 Les analyses sont réalisées sur rstudio installé sur le cluster de l'IFB.
@@ -666,28 +790,42 @@ https://rstudio.cluster.france-bioinformatique.fr/
 
 ### 1.4.1. Chargement des librairies sous R 
 
-```{r load_libraries}
+```{r settings}
+message("Loading required libraries")
 library("knitr")
+library("gplots")
+library("rpart")
+library("rpart.plot")
+library("FactoMineR")# pour faire ACP
+library("factoextra")# pour améliorer les représentations graphiques de base du package FactoMineR
+library("corrplot") # à loader avec factoextra # les deux packages FactoMineR (pour l’analyse) et factoextra (pour la visualisation, des données, basée sur ggplot2)
 library("tidyverse")
-library("FactoMineR") # pour faire ACP
-library("factoextra") # pour améliorer les représentations graphiques de base du package FactoMineR
-library("corrplot") # à loader avec factoextra
-# les deux packages FactoMineR (pour l’analyse) et factoextra (pour la visualisation, des données, basée sur ggplot2)
+library("ComplexHeatmap")
+library("caret")
+library("mixOmics")
+library ("e1071")
+library("dplyr")
+library("DESeq2")
 
 ```
+```{r}
+#knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+```
+
 
 ### 1.4.2. Création des répertoires de travail
 
-```{r eval=FALSE}
+```{r}
 # remove(list=ls())
 # get current working directory
-# getwd()
+# getwd() #"/save_home/sauger/R"
+# setwd("/save_home/sauger/R/projet_tutore")
 # créer un vecteur avec les directories
 ## Create a vector with all the user-specific directories, which can be exported in the report afterwards
 dir <- vector()
 
 ## Specify the local directory for the personal work
-dir["base"] <- "~/projet_tutore"  # Adapt to yours
+dir["base"] <- "/save_home/sauger/R/projet_tutore"
 
 ## Directory with the results of all analyses
 dir["results"] <- file.path(dir["base"], "results")
@@ -700,7 +838,6 @@ dir.create(dir["RNA"], showWarnings = FALSE, recursive = TRUE)
 dir["proteome"] <- file.path(dir["base"], "data", "proteome")
 message("Creating local data directory for proteome data", dir["proteome"])
 dir.create(dir["proteome"], showWarnings = FALSE, recursive = TRUE)
-
 dir["figures"] <- file.path(dir["base"], "figures")
 dir.create(dir["figures"], showWarnings = FALSE, recursive = TRUE)
 
@@ -709,81 +846,301 @@ kable(data.frame(dir), col.names="Directory", caption ="Directories")
 #list.files(projet_tutore)
 ```
 
+### 1.4.3. Parameters used for the analysis
 
-### 1.4.3. Chargement des données
+```{r parameters}
+## Keep a trace of the original parameters
+par.ori <- par(no.readonly = TRUE)
+## Analysis parameters
+parameters <- list(
+  metadata = "plan d'expérience",
+  raw_counts = "données RNAseq, comptages bruts des CDS, 2209 observations", 
+  raw_counts_complete = "données RNAseq, comptages bruts des CDS + short CDS, 2888 observations",
+  log2_counts_complete = "données RNAseq, comptages bruts des CDS + short CDS transformés en log2",
+  best_contributors_PC1 = "liste des gènes contribuant le plus à la Dim1 de l'ACP",
+  best_contributors_PC2 = "liste des gènes contribuant le plus à la Dim2 de l'ACP",
+  normalized_counts = "comptages normalisés après DESeq pour les CDS",
+  normalized_counts_complete = "comptages normalisés après DESeq pour les CDS + short CDS",
+  epsilon = 0.01)
+kable(t(as.data.frame(parameters)), 
+      col.names = "Paramètres", 
+      caption = "Table des paramètres")
+```
 
-**Chargement des données d'expression**
-rawcount <- read.table()
+```{r}
+kable(metadata)
+```
 
-"expression"="log2_norm_counts_DESeq2.tsv" #expression values
 
 
-```{r eval=FALSE}
-# Load expression table
-table.expr <- read.csv(file = file.path(dir["RNA"], "raw_counts.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1) # identify col 1 as containing row names
+### 1.4.4. Chargement des données
 
-message("Loaded expression table with " , 
-        nrow(table.expr), " rows (genes) x ", 
-        ncol(table.expr), " columns (samples)")
+**Chargement des tableaux de comptage pour les CDS**
 
-# which(is.na(table.expr))
+```{r}
+I213_B_t31 <- read.table(file = file.path(dir["RNA"], "I213_B_t31.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t31) <- c("I213_B_31")
+I213_B_t32 <- read.table(file = file.path(dir["RNA"], "I213_B_t32.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t32) <- c("I213_B_32")
+I213_B_t33 <- read.table(file = file.path(dir["RNA"], "I213_B_t33.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t33) <- c("I213_B_33")
 
+I213_B_t41 <- read.table(file = file.path(dir["RNA"], "I213_B_t41.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t41) <- c("I213_B_41")
+I213_B_t42 <- read.table(file = file.path(dir["RNA"], "I213_B_t42.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t42) <- c("I213_B_42")
+I213_B_t43 <- read.table(file = file.path(dir["RNA"], "I213_B_t43.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t43) <- c("I213_B_43")
+
+I213_B_t51 <- read.table(file = file.path(dir["RNA"], "I213_B_t51.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t51) <- c("I213_B_51")
+I213_B_t52 <- read.table(file = file.path(dir["RNA"], "I213_B_t52.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t52) <- c("I213_B_52")
+I213_B_t53 <- read.table(file = file.path(dir["RNA"], "I213_B_t53.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t53) <- c("I213_B_53")
+```
+
+```{r}
+I213_C_t31 <- read.table(file = file.path(dir["RNA"], "I213_C_t31.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t31) <- c("I213_C_31")
+I213_C_t32 <- read.table(file = file.path(dir["RNA"], "I213_C_t32.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t32) <- c("I213_C_32")
+I213_C_t33 <- read.table(file = file.path(dir["RNA"], "I213_C_t33.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t33) <- c("I213_C_33")
+
+I213_C_t41 <- read.table(file = file.path(dir["RNA"], "I213_C_t41.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t41) <- c("I213_C_41")
+I213_C_t42 <- read.table(file = file.path(dir["RNA"], "I213_C_t42.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t42) <- c("I213_C_42")
+I213_C_t43 <- read.table(file = file.path(dir["RNA"], "I213_C_t43.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t43) <- c("I213_C_43")
+
+I213_C_t51 <- read.table(file = file.path(dir["RNA"], "I213_C_t51.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t51) <- c("I213_C_51")
+I213_C_t52 <- read.table(file = file.path(dir["RNA"], "I213_C_t52.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t52) <- c("I213_C_52")
+I213_C_t53 <- read.table(file = file.path(dir["RNA"], "I213_C_t53.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t53) <- c("I213_C_53")
+```
+
+**Fusion des tables de comptage des CDS : fichier raw_counts**
+
+```{r}
+# fusion des tables de comptage
+merge_file <- cbind (I213_B_t31, I213_B_t32, I213_B_t33, I213_B_t41, I213_B_t42, I213_B_t43, I213_B_t51, I213_B_t52, I213_B_t53, I213_C_t31, I213_C_t32, I213_C_t33, I213_C_t41, I213_C_t42, I213_C_t43, I213_C_t51, I213_C_t52, I213_C_t53)
+```
+```{r}
+# suppresssion des 5 dernières lignes
+raw_counts <- merge_file[c(-2214, -2213, -2212, -2211, -2210),]
+write.table(raw_counts, file="results/raw_counts.txt", sep="\t", quote=F, col.names=NA)
+
+```
+
+**Chargement des tableaux de comptage pour les CDS + short CDS**
+
+
+```{r}
+I213_B_t31_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t31_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t31_complete) <- c("I213_B_31")
+I213_B_t32_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t32_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t32_complete) <- c("I213_B_32")
+I213_B_t33_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t33_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t33_complete) <- c("I213_B_33")
+
+I213_B_t41_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t41_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t41_complete) <- c("I213_B_41")
+I213_B_t42_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t42_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t42_complete) <- c("I213_B_42")
+I213_B_t43_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t43_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t43_complete) <- c("I213_B_43")
+
+I213_B_t51_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t51_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t51_complete) <- c("I213_B_51")
+I213_B_t52_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t52_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t52_complete) <- c("I213_B_52")
+I213_B_t53_complete <- read.table(file = file.path(dir["RNA"], "I213_B_t53_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_B_t53_complete) <- c("I213_B_53")
+```
+
+```{r}
+I213_C_t31_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t31_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t31_complete) <- c("I213_C_31")
+I213_C_t32_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t32_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t32_complete) <- c("I213_C_32")
+I213_C_t33_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t33_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t33_complete) <- c("I213_C_33")
+
+I213_C_t41_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t41_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t41_complete) <- c("I213_C_41")
+I213_C_t42_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t42_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t42_complete) <- c("I213_C_42")
+I213_C_t43_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t43_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t43_complete) <- c("I213_C_43")
+
+I213_C_t51_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t51_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t51_complete) <- c("I213_C_51")
+I213_C_t52_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t52_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t52_complete) <- c("I213_C_52")
+I213_C_t53_complete <- read.table(file = file.path(dir["RNA"], "I213_C_t53_complete.txt"), h=FALSE, sep="", row.names = 1)
+colnames(I213_C_t53_complete) <- c("I213_C_53")
+```
+
+
+**Fusion des tables de comptage des CDS + short CDS : fichier raw_counts_complete**
+**Il y a bien 679 short CDS dans la table de comptage.**
+
+```{r}
+# fusion des tables de comptage
+merge_file_complete <- cbind (I213_B_t31_complete, I213_B_t32_complete, I213_B_t33_complete, I213_B_t41_complete, I213_B_t42_complete, I213_B_t43_complete, I213_B_t51_complete, I213_B_t52_complete, I213_B_t53_complete, I213_C_t31_complete, I213_C_t32_complete, I213_C_t33_complete, I213_C_t41_complete, I213_C_t42_complete, I213_C_t43_complete, I213_C_t51_complete, I213_C_t52_complete, I213_C_t53_complete)
+```
+```{r}
+# suppresssion des 5 dernières lignes
+raw_counts_complete <- merge_file_complete[c(-2889,-2890, -2891, -2892, -2893),]
+write.table(raw_counts_complete, file="results/raw_counts_complete.txt", sep="\t", quote=F, col.names=NA)
 ```
 
 
 **Chargement de la table descriptive des échantillons**
 
-```{r eval=FALSE}
+```{r, eval=FALSE}
 metadata <- read.csv(file = file.path(dir["RNA"], "metadata.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1)
 #dim(metadat)
 #names(metadata)
 #head(metadata)
 #class(metadata)
+````
+
+**Classement des différentes classes ensemble**
+
+```{r eval=FALSE}
+#Reorder samples in order to group them by class
+sampleNamesByClass <- rownames(metadata)[order(metadata$classe)]
+#length(sampleNamesByClass)
+#view(sampleNamesByClass)
+metadata <- metadata[sampleNamesByClass, ]
 ```
 
 **Association d'une couleur pour chaque classe d'échantillons**
 
-```{r eval=FALSE}
-#Define sample colors
-class.colors <- c("B_t3"="brown", "B_t4"="darkgreen", "B_t5"="blue", "C_t3"="violet", "C_t4"="grey", "C_t5"="red")
-metadata$color <- class.colors[metadata$classe]
-# table(metadata$color)
+```{r, eval=FALSE}
+conditions <- unique(metadata$classe)
+conditions.colors <- c("B_t3"="brown", "B_t4"="darkgreen", "B_t5"="blue", "C_t3"="violet", "C_t4"="grey", "C_t5"="red")
+# ou on peut faire: conditions.colors <- rainbow-n=length(conditions))
+metadata$color <- conditions.colors[metadata$classe]
+kable(metadata)
+```
+
+### 1.4.4. Exploration des données complètes =(CDS + short CDS)
+
+**Nombre de reads (profondeur de séquençage) par échantillon**
+
+```{r}
+#str(raw_counts)
+colSums(raw_counts_complete)
+```
+
+**Nombre de gènes ayant 0 comptage dans l'ensemble des échantillons**
+
+Sur les 2209 CDS, 21 CDS ont 0 comptage dans l'ensemble des échantillons.
+
+Sur les 679 short CDS, 110 short CDS ont 0 comptage dans l'ensemble des échantillons.
+
+```{r}
+# Calcul sur la table des CDS
+# faire la somme de chaque ligne et regarder celles ayant une somme égale à zéro
+rs <- rowSums(raw_counts)
+nbgenes_at_zeros <- length(which(rs==0))
+nbgenes_at_zeros
 ```
 ```{r}
-print(metadata)
+# Calcul sur la table des CDS + short CDS
+# faire la somme de chaque ligne et regarder celles ayant une somme égale à zéro
+rs <- rowSums(raw_counts_complete)
+nbgenes_at_zeros <- length(which(rs==0))
+nbgenes_at_zeros
 ```
 
 
-##### classer les classes ensemble (voir trame exo module 3)
+**Pour chaque échantillon, nombre de gènes ayant plus de 100 comptages**
 
-
-```{r eval=FALSE}
-#### Reorder samples in order to group them by class ####
-sampleNamesByClass <- rownames(metadata)[order(metadata$classe)]
-length(sampleNamesByClass)
-BIC.expr <- BIC.expr[, sampleNamesByClass]
-BIC.sample.classes <- BIC.sample.classes[sampleNamesByClass, ]
-
-kable(dataFiles, col.names = "File", caption = "Data files")
+```{r}
+number_expressed <- function(x, mincounts=100){
+  nb <- length(which(x>mincounts))
+  return(nb)
+}
+nbgenes_per_sample <- apply(raw_counts_complete, 2, number_expressed)
+nbgenes_per_sample
 ```
 
+**Nombre de gènes exprimés dans chaque échantillon**
 
-
-1.4.4. Nombre de gènes exprimés dans chaque échantillon
-
-```{r eval=FALSE}
-x <- log2Filtered
-nb_expressed_genes <- apply(x, 2, function(x){length(which(x>1))})
+```{r}
+nb_expressed_genes <- apply(raw_counts_complete, 2, function(x){length(which(x>1))})
 kable((as.data.frame(nb_expressed_genes)), 
       col.names = "nb_expressed_genes", 
-      caption = "Table of the number of expressed genes in each sample")
+      caption = "Table du nombre de gènes exprimés dans chaque échantillon")
 ```
-#### Global statistics on all samples 
 
-```{r computed additional parameters, eval=FALSE}
-## Statistics on log2Fileterd data, all samples together
-## y <- unlist(log2Filtered) # Regroup all counts in a vector to compute statistics
-y <- unlist(rawValues)
+
+**Distribution des comptages bruts pour chaque échantillon**
+
+Elle est globalement homogène entre les échantillons.
+
+```{r}
+#png("distribution_comptages_brutes.png", height=400,width=600)
+boxplot(raw_counts_complete, 
+        las=2, ylim=c(500, 30000), ylab="comptages bruts", col=metadata$color, pch=16, main = "Distribution des comptages bruts", cex.axis = 0.8) 
+#dev.off()
+```
+
+
+**Histogramme de la distribution globale des comptages bruts**
+
+La distribution des comptages montre une fréquence très importante des comptages nuls (pas de transcrits détectés) ou faibles, regroupés dans la première tranche à l'extrême gauche du graphique. 
+
+```{r}
+#png("histogramme_distribution_comptages_brutes.png", height=400,width=600)
+hist(unlist(raw_counts_complete), # Regroup all counts in a vector 
+     breaks=100,
+     col ="lightblue", 
+     xlab = "comptages bruts (nombre de classes = 100)",
+     ylab = "effectifs",
+     ylim = c(0,500),
+     main = "Distribution des comptages bruts dans l'ensemble des échantillons") 
+# Notons d’emblée le pic très élevé à gauche, qui correspond à toutes les observations nulles. 
+#dev.off()
+```
+
+**Histogramme de la distribution globale des comptages bruts transformés en log2**
+
+```{r}
+log2_counts_complete <- log2(raw_counts_complete + 0.01)
+write.table(log2_counts_complete, file="results/log2_counts_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+### Histogram of raw counts
+hist(unlist(log2_counts_complete), # Regroup all counts in a vector 
+     breaks=100,
+     col ="lightblue", 
+     xlab = "comptages log2 transformés (nombre de classes = 100)",
+     ylab = "effectifs",
+     ylim = c(0,2000),
+     main = "Distribution des comptages (log2) dans l'ensemble des échantillons") 
+```
+
+
+### 1.4.5. Statisitques globales sur tous les échantillons
+
+```{r}
+kable(summary(raw_counts_complete))
+```
+
+
+```{r computed additional parameters}
+# y <- unlist(raw_counts) # Regroup all counts in a vector to compute statistics
+# Given a list structure x, unlist simplifies it to produce a vector which contains all the atomic components which occur in x.
+y <- unlist(raw_counts_complete)
 count.stats <- data.frame(
   mean = mean(y),
   sd = sd(y),
@@ -799,28 +1156,3319 @@ count.stats <- data.frame(
   )
 # View(count.stats) # for quick check in R interface
 kable(t(count.stats), 
-      caption = "Statistics on log2Filtered values (all samples together)", 
+      caption = "Statistiques globales sur les valeurs des données brutes", 
       format.args = list(decimal.mark = '.', big.mark = ","), digits = 2,
       col.names = "Parameter value")
 ```
-#### Global distribution of raw counts 
 
-```{r eval=FALSE}
-### Histogram of raw counts (log2Values)
-hist(unlist(log2Values), breaks=100) # Regroup all counts in a vector
-# Notons d’emblée le pic très élevé à gauche, qui correspond à toutes les observations nulles. Sur l’axe X, il apparait à la valeur −3.3, qui correspond à log2(ϵ)=log2(0.1).
+### 1.4.6. Stabilisation de la variance
+
+**Moyennne par gène sur les comptages bruts**
+
+La majorité des gènes est peu exprimée. On observe une très faible proportion de gènes qui sont très exprimés.
+
+```{r, fig.pos="H"}
+meanPerFt <- apply(X = raw_counts_complete, MARGIN = 1, FUN = mean)
+#class(meanPerFt)
+#head(meanPerFt)
+hist(meanPerFt, 
+     breaks = 400, 
+     main = ("Moyenne par gène, comptages bruts"), xlim = c(0, 100000),
+     xlab = "raw_counts")
 ```
 
-#### Distribution of raw counts for each sample
 
-```{r boxplot with log2filtered data eval=FALSE}
-boxplot(log2Filtered, 
-        las=2, ylab="raw counts (log2filtered)", col="gray50", pch=16, main = "Distribution of raw counts", cex.axis = 0.8) 
+**Moyenne par gène sur les comptages log2**
+
+```{r, fig.pos="H"}
+log2_meanPerFt <- apply(X = log2_counts_complete, MARGIN = 1, FUN = mean)
+#class(meanPerFt)
+#head(meanPerFt)
+hist(log2_meanPerFt, 
+     breaks = 200, 
+     main = ("Moyenne par gène, comptages log2"),
+     xlab = "log2_counts")
 ```
-#### Représentaiotn mean versus variance rawcount, log2, rlog (voir Deloger et Servant)
+
+**Comparaison moyenne versus variance sur les comptages brutes**
+
+Plus la moyenne des comptages augmente (plus les gènes sont exprimés), plus la variance augmente. La transforamtion en log2 permet de stabiliser la variance, de la réduire dans les grandes valeurs.
+
+```{r, fig.pos="H"}
+#png("moyennevsvariance_raw_counts.png", height=300,width=450)
+varPerFt <- apply(X = raw_counts_complete, MARGIN = 1, FUN = var)
+## Mean-variance plot
+plot(meanPerFt, varPerFt, main=("Comparaison moyenne vs variance, comptages bruts"), xlim=c(0, 60000), ylim=c(0, 300000000), col = densCols(x = meanPerFt, 
+                    y = varPerFt), xlab="moyenne", ylab="variance")
+#dev.off()
+```
+
+
+**Comparasion moyenne versus variance sur les comptages log2**
+
+La variance est stabilisée par rapport à la moyenne, pour les gènes fortement exprimés. Par contre, maintenant l'effet est inverse : ce sont les gènes faiblement exprimés qui ont une variance qui augmente.
+
+```{r, fig.pos="H"}
+#png("moyennevsvariance_log2.png", height=300,width=450)
+log2_varPerFt <- apply(X = log2_counts_complete, MARGIN = 1, FUN = var)
+## Mean-variance plot
+plot(log2_meanPerFt, log2_varPerFt, main=("Comparaison moyenne vs variance, comptages log2"), xlim=c(0, 20), ylim=c(0, 10), col = densCols(x = log2_meanPerFt, 
+                    y = log2_varPerFt), xlab="moyenne", ylab="variance")
+#dev.off()
+```
 
 
 
-Fonction R: PCA() [FactoMineR].
+Pour éviter que la mesure de la distance entre les échantillons soit dominée par quelques gènes très variables, et afin qu'il y est une contribution à peu près égale de tous les gènes, il est recommandé d'**utiliser une approche de normalisation qui stabilise la variance** à travers le niveau d'expression, **conduisant à des données quasi homoscédastiques** (c'est-à-dire la variance de l'expression du gène ne dépend pas de la moyenne).
+
+Dans les données RNA-seq, la variance augmente avec la moyenne. Si nous exécutons la PCA directement sur une matrice des comptages, le résultat dépendra principalement des quelques gènes les plus fortement exprimés car ils montrent les plus grandes différences absolues entre les échantillons.
+
+Une stratégie simple pour éviter cela est de prendre le **log2 des comptages**. Cependant, maintenant, les gènes avec un faible dénombrement ont tendance à dominer les résultats car ils montrent la plus forte
+différences entre les échantillons. Par conséquent, les transformations qui stabilisent la variance par rapport à la moyenne sont conseillées.
+Comme **méthode de normalisation, il existe la méthode rlog** «Relative Log Expression» développée par Anders et Hubers. Simon Anders and Wolfgang Huber (2010) Differential expression analysis for sequence count data.Genome Biology,11:R106. La méthode rlog est disponible dans le package DeSeq2.
+
+![rlog((dir["RNA"], "figures", "rlog.png))]
+
+Un **autre biais est celui de la profondeur de séquençage** (nombre de reads alignés dans l’échantillon). Imaginons qu’il y ait deux fois plus de reads dans un échantillon (A) que dans un autre(B). Alors, pour un gène qui s’exprime de la même manière dans les deux échantillons,le nombre de reads dans (A) sera approximativement égal à deux fois le nombre de readsdans (B) et les comptages ne seront pas directement comparables. Une des solutions serait de diviser chaque comptage par le nombre total de reads dans l’échantillon, mais cette méthode est insuffisante car le nombre total de reads d’un échantillon est fortement influencé par quelques gènes dont le comptage est très élevé (la distribution du nombre de reads par gène est en général très asymétrique).
+
+**Comparaison de deux échantillons avec les méthodes log2 et rlog**
+
+La méthode rlog permet de stabiliser la variance des gènes fortement et faiblement exprimés.
+
+```{r, fig.pos="H"}
+#pdf("stabilisation_variance.pdf", height=5,width=8)
+
+## Load data
+dds <- DESeqDataSetFromMatrix(countData=raw_counts_complete, DataFrame(condition=metadata$classe), ~ condition)
+## Estimate size factors
+# To perform the median of ratios method of normalization, DESeq2 has a single estimateSizeFactors() function that will generate size factors. We will use the function in the example below, but in a typical RNA-seq analysis this step is automatically performed by the DESeq() function, which we will see later.
+dds <- estimateSizeFactors(dds)
+## Remove lines with only zeros
+dds <- dds[ rowSums(counts(dds)) > 0, ]
+## Run the rlog normalization
+rld <- rlog(dds, blind=TRUE)
+## r rlog
+par(mfrow=c(1,3))
+plot(counts(dds, normalized=TRUE)[,1:2],
+  pch=16, cex=0.3, xlim=c(0,20e3), ylim=c(0,20e3), main="comptages brutes")
+plot(log2(counts(dds, normalized=TRUE)[,1:2] + 0.01),
+   pch=16, cex=0.3, main="comptages normalisés par log2")
+plot(assay(rld)[,1:2],
+  pch=16, cex=0.3, main="comptages normalisés par rlog")
+
+#dev.off()
+```
+
+
+
+## 1.5. Analyse en composantes principales
+
+L’analyse en composantes principales (ACP) permet d’analyser et de visualiser un jeu de données contenant des individus décrits par plusieurs variables quantitatives. C’est une méthode statistique qui permet d’**explorer des données dites multivariées** (données avec plusieurs variables). L’ACP **synthétise cette information en seulement quelques nouvelles variables appelées composantes principales**. Ces nouvelles variables correspondent à une combinaison linéaire des variables originels. L’information contenue dans un jeu de données correspond à la variance ou l’inertie totale qu’il contient. L’objectif de l’ACP est d’identifier les directions (i.e., axes principaux ou composantes principales) le long desquelles la variation des données est maximale. En d’autres termes, l’ACP réduit les dimensions d’une donnée multivariée à deux ou trois composantes principales, qui peuvent être visualisées graphiquement, en perdant le moins possible d’information.
+
+La fonction PCA réduit et centre les variables avant de réaliser l'ACP. Cette étape permet à toutes les variables d'avoir le même poids dans la construction des plans de l'ACP. Pour se passer de la réduction des variables, on utilise scale.unit = FALSE.
+
+**Format des données**
+
+```{r}
+head(log2_counts_complete)
+```
+
+
+### 1.5.1. ACP sur les comptages log2 sans normalisation
+
+Les lignes doivent être des individus (échantillons) et les colonnes des variables numériques (gènes).
+
+```{r}
+## Beware: the individuals should come as row --> we have to transpose the expression matrix
+## La focntion PCA réduit et centre les variables avant de réaliser l'ACP. Cette étape permet à toutes les variables d'avoir le même poids dans la construction des plans de l'ACP. Pour se passer de la réduction des variables, on utilise scale.unit = FALSE.
+log2.pca <- PCA(t(log2_counts_complete), scale.unit = FALSE, ncp = ncol(log2_counts_complete), graph = FALSE)
+```
+
+```{r, eval=FALSE}
+## Check the content of the resulting object
+names(log2.pca)
+# str(res.pca)
+# le fichier res.pca est une liste de 5 elements.
+summary(log2.pca)
+## Dans la 1ère partie : on retourve les % d'inertie expliqués par chaque axe, ainsi que les % cumulés.
+# les pourcentages d’inertie sont les valeurs propres ou d’eigen values (il s’agit de la quantité de variance expliquée), exprimées en pourcentage.
+# Dans la 2eme partie, on retrouve les coordonnées de chaque observation (les échantillons) sur les différents axes de l'ACP, ainsi qu'une mesure de la contribution sur chaque axe (ctr) et une msesure de sa représenatation (cos2).
+# La dernière partie est identique à la deuxième, mais concerne les variables (les gènes).
+```
+
+
+**Valeurs propres/Variances**
+
+Les valeurs propres (**eigenvalues** en anglais) mesurent la quantité de variance expliquée par chaque axe principal. Les valeurs propres sont grandes pour les premiers axes et petits pour les axes suivants. Autrement dit, les premiers axes correspondent aux directions portant la quantité maximale de variation contenue dans le jeu de données. 
+
+Nous examinons les valeurs propres pour déterminer le nombre de composantes principales à prendre en considération. Les valeurs propres et la proportion de variances (i.e. information) retenues par les composantes principales peuvent être extraites à l’aide de la fonction get_eigenvalue() [package factoextra]. 
+
+
+La somme de toutes les valeurs propres donne une variance totale de 10.
+
+La proportion de variance expliquée par chaque valeur propre est donnée dans la deuxième colonne. 
+
+La composante 1 explique 24.5 % de la variance observée entre les échantillons.
+
+```{r}
+eig.val <- get_eigenvalue(log2.pca)
+eig.val
+```
+
+
+```{r, fig.pos="H", pourcentage_inertie.pdf}
+#png("pourcentage_inertie_non_centré_réduit.png", height=300,width=450)
+# Visualisation du pourcentage d'inertie des axes
+fviz_eig(log2.pca, addlabels = TRUE, ylim = c(0, 50), main = paste(parameters$datatype, parameters$dataset))
+#dev.off()
+```
+
+
+**Projections des individus sur les composantes 1 et 2**
+
+Les résultats, pour les individus, peuvent être extraits à l’aide de la fonction get_pca_ind() [package factoextra]. Comme get_pca_var(), la fonction get_pca_ind() retourne une liste de matrices contenant tous les résultats pour les individus (coordonnées, corrélation entre individus et axes, cosinus-carré et contributions).
+
+La 1ère dimension permet de séparer les temps t3, t4 et t5 pour les 2 milieux.
+
+La 2ème composantes permet de séparer le smilieux B et C.
+
+Les réplicats pour chauqe condition sont regroupés ensemble. C'est surtout au temps t5 que les milieux B et C sont différents.
+
+```{r, eval=FALSE}
+ind <- get_pca_ind(log2.pca)
+ind
+```
+
+```{r, fig.pos="H"}
+#pdf("PCA_PC1_PC2.pdf", height=5,width=8)
+
+#### Plot PC1 vs PC2 with condition-specific colors 
+fviz_pca_ind(log2.pca, axes = c(1,2),
+             geom.ind = "point", # Montre les points seulement (mais pas le texte)
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             addEllipses = FALSE, # pas assez de points pour ellipses de concentration 
+             legend.title = "Groupes des différentes classes"
+)
+#dev.off()
+```
+
+```{r, fig.pos="H"}
+#pdf("PCA_PC1_PC2_names.pdf", height=5,width=8)
+#### Plot PC1 vs PC2 with condition-specific colors 
+fviz_pca_ind(log2.pca, axes = c(1,2),
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             legend.title = "Groupes des différentes classes"
+)
+#dev.off()
+```
+
+**Projections des individus sur les composantes 3 et 4**
+
+```{r, fig.pos="H"}
+#pdf("PCA_PC3_PC4.pdf", height=5,width=8)
+
+#### Plot PC3 vs PC4 with condition-specific colors 
+fviz_pca_ind(log2.pca, axes = c(3,4),
+             geom.ind = "point", # Montre les points seulement (mais pas le texte)
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             addEllipses = FALSE, # pas assez de points pour ellipses de concentration 
+             legend.title = "Groupes des différentes classes"
+)
+#dev.off()
+```
+
+
+```{r, fig.pos="H"}
+#pdf("PCA_PC3_PC4_names.pdf", height=5,width=8)
+#### Plot PC3 vs PC4 with condition-specific colors 
+fviz_pca_ind(log2.pca, axes = c(3,4),
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             legend.title = "Groupes des différentes classes"
+)
+#dev.off()
+```
+
+
+**Projections des individus sur les composantes 5 et 6**
+
+```{r, fig.pos="H", PCA.pdf}
+#pdf("PCA_PC5_PC6_names.pdf", height=5,width=8)
+
+#### Plot PC5 vs PC6 with condition-specific colors 
+fviz_pca_ind(log2.pca, axes = c(5,6),
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             addEllipses = FALSE, # pas assez de points pour ellipses de concentration 
+             legend.title = "Groupes des différentes classes"
+)
+#dev.off()
+```
+
+**Recherche des variables contribuant le plus à la dimension 1 et à la dimension 2.**
+
+```{r} 
+## Look at the variable that contribute the most to the PC1
+best.contrib <- c(names(sort(log2.pca$var$contrib[,"Dim.1"], decreasing=TRUE)))
+str(best.contrib)
+best_contributors <- as.data.frame(best.contrib)
+w <- as.matrix(log2_counts_complete)
+
+write.table(best_contributors, file="results/best_contributors_PC1.txt", sep="\t", quote=F, col.names=NA)
+
+## Let's check the best contributors
+#barplot(as.data.frame(log2Filtered)[best.contrib[5,], col="gray50", 
+barplot(w[best.contrib[5],], col="gray50", 
+        border="white", las=2, main=best.contrib[5])
+barplot(w[best.contrib[3],], col="gray50", 
+        border="white", las=2, main=best.contrib[3])
+
+## Look at the variable that contribute the most to the PC1
+best.contrib2 <- c(names(sort(log2.pca$var$contrib[,"Dim.2"], decreasing=TRUE)))
+str(best.contrib2)
+best_contributors2 <- as.data.frame(best.contrib2)
+
+write.table(best_contributors2, file="results/best_contributors_PC2.txt", sep="\t", quote=F, col.names=NA)
+
+
+```
+
+
+
+### 1.5.2. ACP avec normalisation centrée-réduite 
+
+Dans l’analyse en composantes principales, les variables sont souvent normalisées. Ceci est particulièrement recommandé lorsque les variables sont mesurées dans différentes unités (par exemple: kilogrammes, kilomètres, centimètres, …); sinon, le résultat de l’ACP obtenue sera fortement affecté.
+
+L’objectif est de rendre les variables comparables. Généralement, les variables sont normalisées de manière à ce qu’elles aient au final i) un écart type égal à un et ii) une moyenne égale à zéro.
+
+Techniquement, l’approche consiste à transformer les données en soustrayant à chaque valeur une valeur de référence (la moyenne de la variable) et en la divisant par l’écart type. A l’issue de cette transformation les données obtenues sont dites données centrées-réduites. L’ACP appliquée à ces données transformées est appelée ACP normée.
+
+La composante 1 explique 46 % de la variance observée entre les échantillons.
+
+L'ACP normalisée augmente le pourcentage d'inertie de la dimension 1.
+
+```{r}
+## Beware: the individuals should come as row --> we have to transpose the expression matrix
+## La fonction PCA réduit et centre les variables avant de réaliser l'ACP. Cette étape permet à toutes les variables d'avoir le même poids dans la construction des plans de l'ACP. Pour se passer de la réduction des variables, on utilise scale.unit = FALSE.
+log2norm.pca <- PCA(t(log2_counts_complete), scale.unit = TRUE, ncp = ncol(log2_counts_complete), graph = FALSE)
+```
+
+```{r, fig.pos="H"}
+#png("pourcentage_inertie_centré_réduit.png", height=300,width=450)
+# Visualisation du pourcentage d'inertie des axes
+fviz_eig(log2norm.pca, addlabels = TRUE, ylim = c(0, 60), main = paste(parameters$datatype, parameters$dataset))
+#dev.off()
+```
+
+
+
+```{r}
+#png("PCA_PC1_PC2_centre_reduit.png", height=400,width=500)
+#### Plot PC1 vs PC2 with condition-specific colors 
+fviz_pca_ind(log2norm.pca, axes = c(1,2),
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             legend.title = "Classes"
+)
+#dev.off()
+```
+```{r, fig.pos="H"}
+#png("PCA_PC1_PC2_centre_reduit_bis.png", height=400,width=500)
+#### Plot PC1 vs PC2 with condition-specific colors 
+fviz_pca_ind(log2norm.pca, axes = c(1,2),
+             geom.ind = "point", # Montre les points seulement (mais pas le texte)
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             addEllipses = FALSE, # pas assez de points pour ellipses de concentration 
+             legend.title = "Classes"
+)
+#dev.off()
+```
+
+```{r}
+#png("PCA_PC3_PC4_centre_reduit.png", height=400,width=500)
+#### Plot PC3 vs PC4 with condition-specific colors 
+fviz_pca_ind(log2norm.pca, axes = c(1,2),
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             legend.title = "Classes"
+)
+#dev.off()
+```
+
+```{r}
+#png("PCA_PC5_PC6_centre_reduit.png", height=400,width=500)
+#### Plot PC5 vs PC6 with condition-specific colors 
+fviz_pca_ind(log2norm.pca, axes = c(1,2),
+             repel = TRUE, # évite le chevauchement de texte
+             col.ind = metadata$classe, # colore par groupe
+             legend.title = "Classes"
+)
+#dev.off()
+```
+
+**Recherche des variables contribuant le plus à la dimension 1 et à la dimension 2.**
+
+```{r} 
+## Look at the variable that contribute the most to the PC1
+best.contrib <- c(names(sort(log2norm.pca$var$contrib[,"Dim.1"], decreasing=TRUE)))
+str(best.contrib)
+best_contributors <- as.data.frame(best.contrib)
+w <- as.matrix(log2_counts_complete)
+
+write.table(best_contributors, file="results/best_contributors_PC1.txt", sep="\t", quote=F, col.names=NA)
+
+## Let's check the best contributors
+#barplot(as.data.frame(log2Filtered)[best.contrib[5,], col="gray50", 
+barplot(w[best.contrib[5],], col="gray50", 
+        border="white", las=2, main=best.contrib[5])
+barplot(w[best.contrib[3],], col="gray50", 
+        border="white", las=2, main=best.contrib[3])
+
+## Look at the variable that contribute the most to the PC2
+best.contrib2 <- c(names(sort(log2norm.pca$var$contrib[,"Dim.2"], decreasing=TRUE)))
+str(best.contrib2)
+best_contributors2 <- as.data.frame(best.contrib2)
+
+write.table(best_contributors2, file="results/best_contributors_PC2.txt", sep="\t", quote=F, col.names=NA)
+
+
+```
+
+## 1.6. Clustering ascendant hierarchique sur les gènes (variables)
+
+### 1.6.1. Calcul de la matrice de distance euclidienne
+Les données étant des valeurs quantitatives continues, la distance adéquate pour la matrice de similarité est la distance euclidienne.
+
+```{r}
+mat_eucli <- dist(t(log2_counts_complete), method = "euclidian")
+# str(mat_eucli)
+# Cela renvoit un objet dist.
+```
+
+### 1.6.2 Construction du dendogramme
+J’ai opté ici pour construire le dendrogramme avec la méthode de Ward. C’est actuellement la méthode qui permet le mieux d’optimiser l’homogénéité des observations au sein des groupes de cluster et l’hétérogénéité des observations entre les groupes de cluster. Cependant, d’autres méthodes existent (“complete”, “single”, etc…, voir ?hclust).
+
+```{r}
+dendro <- hclust(mat_eucli, method="ward.D2")
+```
+
+**Affichage du dendogramme obtenu**
+
+Les réplicats sont bien regroupés par condition.
+
+```{r, dendogramme.pdf}
+#pdf("dendogramme_complete.pdf", height=5,width=8)
+
+library("cluster")
+# dendrogramme sans couleurs
+#plot(dendro, cex=0.8, hang = -1, las = 1, col = "black", main = "Euclidian distance, Ward linkage")
+# Plot a line to show the cut
+#abline(h = 60, col = "red")
+
+plotDendroAndColors(dendro, metadata$color, groupLabels = names(metadata), main="Euclidian distance, Ward linkage")
+
+#ClassDiscovery::plotColoredClusters( log2_counts, labs= metadata$classe.type, col = "grey", cols=metadata$color, cex=0.2, main = "Euclidian distance, Ward linkage")
+#legend("topright", legend=c("B-t3", "B_t4", "B_t5", "C_t3", "C_t4", "C_t5"),  col = metadata$color, text.col = metadata$color, cex=0.9)
+
+#dev.off()
+```
+
+
+## 1.7. Heatmap : visualisation des ressemblances entre échantillons
+
+```{r, heatmap.pdf}
+#png("heatmap_complete.png", height=400,width=500)
+
+Heatmap(as.matrix(mat_eucli),
+        name = "distance euclidienne",
+        column_title = "Samples",
+        column_title_gp = gpar(fontsize = 10),
+        row_title = "Samples",
+        row_title_gp = gpar(fontsize = 10),
+        show_column_names = TRUE, 
+        show_row_names = TRUE,
+        row_dend_width = unit(10, "mm"),
+        column_dend_height = unit(10, "mm"),
+        cluster_rows = TRUE
+      )
+
+#dev.off()
+```
+
+
+
+**On observe un regroupement des échantillons au temps t3, au temps t4 et au temps t5, quelques soit le milieu.**
+
+## 1.7. Analyse différentielle avec DESeq2
+
+Dans DESeq2,la méthode de normalisation est la méthode rlog **«Relative Log Expression»** qui se base sur un **modèle de distribution binomiale négative**. 
+Le fait de générer un nouvel échantillon de RNAseq implique une probabilité qui varie d’un échantillon à un autre : la variance des comptages pour un gène sera plus grande que la moyenne, et on parle alors de **«surdispersion»** des comptages par rapport à une distribution de Poisson. Pour modéliser la surdispersion des comptages, on modifie l’hypothèse de modélisation. Un paramètre est introduit pour modéliser l’hétérogénéité biologique des comptages. La distribution Binomiale Négative est une alternative à la distribution de Poisson quand il s’agit de modéliser des données pour lesquelles la variance empirique est supérieure à la moyenne empirique.
+
+L’estimation des paramètres de ce modèle se fait grâce à une estimation de la relation entre la variance et la moyenne des comptages. C’est à partir de ce modèle que les tests sont réalisés dans DESeq2.
+
+Il est nécessaire de noter que nous réalisons des tests indépendants sur plusieurs milliers de gènes simultanément. La p-value classique n’est donc pas adaptée. En effet, choisissons par exemple un taux d’erreur du premier type (déclarer un gène differentiellement exprimé alors qu’il ne l’est pas) de 5 % par exemple. Imaginons que nous testions 10000 gènes etque tous soient non différentiellement exprimés. Alors pour un test multiple avec un seuild e p-value à 5 %, nous déclarons 10000∗0.05 = 500 gènes DE alors qu’ils ne le sont pas : c’est beaucoup trop. La solution est d’utiliser une **p-value ajustée** qui est adaptée aux tests multiples. 
+
+Il existe différentes méthodes d’ajustement de la p-value, notamment :
+- la procédure de Bonferroni qui consiste à contrôler le Family Wise Error Test (FWER), c’est-à-dire la probabilité d’avoir au moins un « faux positif ».
+- la **procédure de Benjamini-Hochberg** qui consiste à contrôler le FalseDiscovery Rate (FDR), c’est-à-dire la proportion de faux positifs dans les gènes déclarés différentiellement exprimés. Cette procédure est utilisée dans DESeq2.
+
+Résultats de l’analyse avec **DESeq2 : Les résultats de l’analyse sont accessibles via la fonction results(dds) avec pour chaque gène la statistique de test, la p-value, la p-value ajustée (par la méthode de Benjamini-Hochberg).** Nous pouvons donc extraire une liste des gènes déclarés différentiellement exprimés à 1 %, 2 % ou 5 % en les séléctionnant par rapport à leur p-value ajustée.
+
+
+### 1.7.1. Génération de la table de comptage normalisée avec DESeq2 pour les CDS (sans les short CDS)
+
+La normalisation  des données  de comptage  est effectuée par la méthode "effective library size".
+
+**Optionnel : filtrage arbitraire des données**
+
+```{r}
+#### On ne garde que les gènes avec un comptage moyen supérieur à 5
+#count_mean5 <- raw_counts[rowMeans(raw_counts) >=5,]
+#dds <- DESeqDataSetFromMatrix(countData = count_mean5, colData, design = ~ condition)
+#colData(dds)$condition <- relevel(colData(dds)$condition, ref="B_t3")
+#dim(counts(dds))
+#head(counts(dds))write.table(normalized_counts, file="data/normalized_counts.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Construction de l'objet DESeqDataSetFromMatrix (dds) et obtention de la table des données normalisées**
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=raw_counts, DataFrame(condition=metadata$classe), ~ condition)
+# To perform the median of ratios method of normalization, DESeq2 has a single estimateSizeFactors() function that will generate size factors. We will use the function in the example below, but in a typical RNA-seq analysis this step is automatically performed by the DESeq() function.
+dds <- estimateSizeFactors(dds)
+# By assigning the results back to the dds object we are filling in the slots of the DESeqDataSet object with the appropriate information. We can take a look at the normalization factor applied to each sample using:
+sizeFactors(dds)
+# Now, to retrieve the normalized counts matrix from dds, we use the counts() function and add the argument normalized=TRUE.
+normalized_counts <- counts(dds, normalized=TRUE)
+# We can save this normalized data matrix to file for later use:
+# Number of normalized read counts after correction for library size by DESeq2
+write.table(normalized_counts, file="results/normalized_counts.txt", sep="\t", quote=F, col.names=NA)
+```
+```{r}
+NA_rows <- which(is.na(normalized_counts))
+```
+
+**Objet dds**
+```{r}
+dim(counts(dds))
+head(counts(dds), n=2)
+summary(counts(dds))
+```
+
+**Visualisation de la normalisation**
+
+```{r}
+par(mfrow=c(1,1))
+colSums(counts(dds, normalized = TRUE))
+barplot (colSums(counts(dds,normalized = TRUE)) ,main="profondeur de séquençage après normalisation par DESeq")
+```
+
+### 1.7.2. Normalisation et analyse différentielle avec la fonction DESeq() pour le milieu B
+
+Un tel objet contient la table de comptage mais également un tableau décrivant le plan d’expérience (nommé colData). Dans ce plan d’expérience, il y a au moins une variable de type facteur : la condition. Il s’agit de la condition biologique qui peut prendre par exemple deux niveaux : « milieu de culture 1 », « milieu de culture 2 ». Il y a également un facteur qui décrit le format de séquençage qui peut prendre deux niveaux : single-read quand on séquence l’ARN d’un seul coté, ou paired-end, quand on séquence des deux cotés.
+
+
+```{r}
+# Indication de la table des données
+colData <- DataFrame(condition=metadata[c(1,2,3,7,8,9), ]$classe)
+## Use the DESeqDataSetFromMatrix to create a DESeqDataSet object
+dds_B_t3 <- DESeqDataSetFromMatrix(countData=raw_counts[, c(1,2,3,7,8,9)], colData, design = ~ condition)
+colData(dds_B_t3)$condition <- relevel(colData(dds_B_t4)$condition, ref="B_t3")
+## Estimate size factors
+dds_B_t3 <- estimateSizeFactors(dds_B_t4)
+```
+
+```{r}
+# la fonction DeSeq() effectue la normalisation et l'analyse différentielle en une seul étape
+dif.dds_B <- DESeq(dds_B_t3)
+# head(counts(dif.dds, normalized =TRUE), n=3)
+# details<-mcols(dif.dds, use.names = T)
+# head(details, n=3)
+```
+
+
+### 1.7.3. Résultat de l'analyse différentielle B_t5 vs B_t3
+
+res contient les résultats de l'analyse différentielle uniquement pour la dernière variable.
+
+```{r}
+# res contient les résultats de l'analyse différentielle pour la dernière variable
+res_B_t5vst3 <- as.data.frame(results(dif.dds_B))
+head(res_B_t5vst3)
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+res_B_t5vst3$positive <- res_B_t5vst3$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+#résumé
+table(res_B_t5vst3$positive)
+
+write.table(res_B_t5vst3, file="results/res_B_t5vst3.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Distribution des padj**
+
+```{r}
+par(mfrow = c(1 ,1))
+hist (res_B_t5vst3$padj, breaks =100,  border=" slateblue" ,main="Histogramme des padj")
+```
+
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour B_t5 vs B_t3**
+
+```{r}
+table(res_B_t5vst3$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour B_t5 vs B_t3**
+
+```{r}
+resSig_B_t5vst3 <- na.omit(res_B_t5vst3)
+resSig_B_t5vst3 <- resSig_B_t5vst3[resSig_B_t5vst3$padj < 0.05, ]
+resSig_B_t5vst3 <- resSig_B_t5vst3[order(resSig_B_t5vst3$padj),]
+
+write.table(resSig_B_t5vst3, file="results/resSig_B_t5vst3.txt", sep="\t", quote=F, col.names=NA)
+```
+
+### 1.7.4. Résultat de l'analyse différentielle B_t4 vs B_t3
+
+```{r}
+# Indication de la table des données
+colData <- DataFrame(condition=metadata[c(1,2,3,4,5,6), ]$classe)
+## Use the DESeqDataSetFromMatrix to create a DESeqDataSet object
+dds_B_t4 <- DESeqDataSetFromMatrix(countData=raw_counts[, c(1,2,3,4,5,6)], colData, design = ~ condition)
+colData(dds_B_t4)$condition <- relevel(colData(dds_B_t4)$condition, ref="B_t3")
+## Estimate size factors
+dds_B_t4 <- estimateSizeFactors(dds_B_t4)
+```
+
+```{r, eval=FALSE}
+dim(counts(dds_B_t4))
+head(counts(dds_B_t4))
+summary(counts(dds_B_t4))
+```
+
+
+```{r}
+# la fonction DeSeq() effectue la normalisatiion et l'analyse différentielle en une seul étape
+dif.dds_B_t4 <- DESeq(dds_B_t4)
+# head(counts(dif.dds, normalized =TRUE), n=3)
+# details<-mcols(dif.dds, use.names = T)
+# head(details, n=3)
+```
+
+```{r}
+# res_B_t4vst3 contient les résultats de l'analyse différentielle pour la variable B_t4 vs B_t3
+res_B_t4vst3 <- as.data.frame(results(dif.dds_B_t4))
+head(res_B_t4vst3, n=2)
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+res_B_t4vst3$positive <- res_B_t4vst3$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+#résumé
+table(res_B_t4vst3$positive)
+
+write.table(res_B_t4vst3, file="results/res_B_t4vst3.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour B_t4 vs B_t3**
+
+```{r}
+table(res_B_t4vst3$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour B_t4 vs B_t3**
+
+```{r}
+resSig_B_t4vst3 <- na.omit(res_B_t4vst3)
+resSig_B_t4vst3 <- resSig_B_t4vst3[resSig_B_t4vst3$padj < 0.05, ]
+resSig_B_t4vst3 <- resSig_B_t4vst3[order(resSig_B_t4vst3$padj),]
+
+write.table(resSig_B_t4vst3, file="results/resSig_B_t4vst3.txt", sep="\t", quote=F, col.names=NA)
+```
+
+### 1.7.5. Résultat de l'analyse différentielle B_t5 vs B_t4
+
+```{r}
+# Indication de la table des données
+colData <- DataFrame(condition=metadata[c(4,5,6,7,8,9), ]$classe)
+## Use the DESeqDataSetFromMatrix to create a DESeqDataSet object
+dds_B_t5 <- DESeqDataSetFromMatrix(countData=raw_counts[, c(4,5,6,7,8,9)], colData, design = ~ condition)
+colData(dds_B_t5)$condition <- relevel(colData(dds_B_t5)$condition, ref="B_t4")
+## Estimate size factors
+dds_B_t5 <- estimateSizeFactors(dds_B_t5)
+```
+
+```{r, eval=FALSE}
+dim(counts(dds_B_t5))
+head(counts(dds_B_t5))
+summary(counts(dds_B_t5))
+```
+
+
+```{r}
+# la fonction DeSeq() effectue la normalisation et l'analyse différentielle en une seul étape
+dif.dds_B_t5 <- DESeq(dds_B_t5)
+# head(counts(dif.dds, normalized =TRUE), n=3)
+# details<-mcols(dif.dds, use.names = T)
+# head(details, n=3)
+```
+
+```{r}
+# res_B_t5vst4 contient les résultats de l'analyse différentielle pour la variable B_t5 vs B_t4
+res_B_t5vst4 <- as.data.frame(results(dif.dds_B_t5))
+head(res_B_t5vst4, n=2)
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+res_B_t5vst4$positive <- res_B_t5vst4$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+#résumé
+table(res_B_t5vst4$positive)
+
+write.table(res_B_t5vst4, file="results/res_B_t5vst4.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour B_t5 vs B_t4**
+
+```{r}
+table(res_B_t5vst4$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour B_t5 vs B_t4**
+
+```{r}
+resSig_B_t5vst4 <- na.omit(res_B_t5vst4)
+resSig_B_t5vst4 <- resSig_B_t5vst4[resSig_B_t5vst4$padj < 0.05, ]
+resSig_B_t5vst4 <- resSig_B_t5vst4[order(resSig_B_t5vst4$padj),]
+
+write.table(resSig_B_t5vst4, file="results/resSig_B_t5vst4.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+### 1.7.6. Normalisation et analyse différentielle avec la fonction DESeq() pour les échantillons milieu C
+
+### 1.7.7. Résultat de l'analyse différentielle C_t5 vs C_t3
+
+```{r}
+# Indication de la table des données
+colData <- DataFrame(condition=metadata[c(10,11,12,16,17,18), ]$classe)
+## Use the DESeqDataSetFromMatrix to create a DESeqDataSet object
+dds_C_t5t3 <- DESeqDataSetFromMatrix(countData=raw_counts[, c(10,11,12,16,17,18)], colData, design = ~ condition)
+colData(dds_C_t5t3)$condition <- relevel(colData(dds_C_t5t3)$condition, ref="C_t3")
+## Estimate size factors
+dds_C_t5t3 <- estimateSizeFactors(dds_C_t5t3)
+```
+
+```{r, eval=FALSE}
+dim(counts(dds_C_t5t3))
+head(counts(dds_C_t5t3))
+summary(counts(dds_C_t5t3))
+```
+
+```{r}
+# la fonction DeSeq() effectue la normalisatiion et l'analyse différentielle en une seul étape
+dif.dds_C_t5t3 <- DESeq(dds_C_t5t3)
+# head(counts(dif.dds, normalized =TRUE), n=3)
+# details<-mcols(dif.dds, use.names = T)
+# head(details, n=3)
+```
+
+```{r}
+# res_C_t5vst3 contient les résultats de l'analyse différentielle pour la variable C_t5 vs C_t3
+res_C_t5vst3 <- as.data.frame(results(dif.dds_C_t5t3))
+head(res_C_t5vst3, n=2)
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+res_C_t5vst3$positive <- res_C_t5vst3$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+#résumé
+table(res_C_t5vst3$positive)
+
+write.table(res_C_t5vst3, file="results/res_C_t5vst3.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour C_t5 vs C_t3**
+
+```{r}
+table(res_C_t5vst3$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour C_t5 vs C_t3**
+
+```{r}
+resSig_C_t5vst3 <- na.omit(res_C_t5vst3)
+resSig_C_t5vst3 <- resSig_C_t5vst3[resSig_C_t5vst3$padj < 0.05, ]
+resSig_C_t5vst3 <- resSig_C_t5vst3[order(resSig_C_t5vst3$padj),]
+
+write.table(resSig_C_t5vst3, file="results/resSig_C_t5vst3.txt", sep="\t", quote=F, col.names=NA)
+```
+
+### 1.7.8. Résultat de l'analyse différentielle C_t5 vs C_t4
+
+```{r}
+# Indication de la table des données
+colData <- DataFrame(condition=metadata[c(13,14,15,16,17,18), ]$classe)
+## Use the DESeqDataSetFromMatrix to create a DESeqDataSet object
+dds_C_t5t4 <- DESeqDataSetFromMatrix(countData=raw_counts[, c(13,14,15,16,17,18)], colData, design = ~ condition)
+colData(dds_C_t5t4)$condition <- relevel(colData(dds_C_t5t4)$condition, ref="C_t4")
+## Estimate size factors
+dds_C_t5t4 <- estimateSizeFactors(dds_C_t5t4)
+```
+
+
+```{r, eval=FALSE}
+dim(counts(dds_C_t5t4))
+head(counts(dds_C_t5t4))
+summary(counts(dds_C_t5t4))
+```
+
+```{r}
+# la fonction DeSeq() effectue la normalisatiion et l'analyse différentielle en une seul étape
+dif.dds_C_t5t4 <- DESeq(dds_C_t5t4)
+# head(counts(dif.dds, normalized =TRUE), n=3)
+# details<-mcols(dif.dds, use.names = T)
+# head(details, n=3)
+```
+
+```{r}
+# res_C_t5vst4 contient les résultats de l'analyse différentielle pour la variable C_t5 vs C_t4
+res_C_t5vst4 <- as.data.frame(results(dif.dds_C_t5t4))
+head(res_C_t5vst4, n=2)
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+res_C_t5vst4$positive <- res_C_t5vst4$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+#résumé
+table(res_C_t5vst4$positive)
+
+write.table(res_C_t5vst4, file="results/res_C_t5vst4.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour C_t5 vs C_t4**
+
+```{r}
+table(res_C_t5vst4$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour C_t5 vs C_t4**
+
+```{r}
+resSig_C_t5vst4 <- na.omit(res_C_t5vst4)
+resSig_C_t5vst4 <- resSig_C_t5vst4[resSig_C_t5vst4$padj < 0.05, ]
+resSig_C_t5vst4 <- resSig_C_t5vst4[order(resSig_C_t5vst4$padj),]
+
+write.table(resSig_C_t5vst4, file="results/resSig_C_t5vst4.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+### 1.7.9. Résultat de l'analyse différentielle C_t4 vs C_t3
+
+```{r}
+# Indication de la table des données
+colData <- DataFrame(condition=metadata[c(10,11,12,13,14,15), ]$classe)
+## Use the DESeqDataSetFromMatrix to create a DESeqDataSet object
+dds_C_t4t3 <- DESeqDataSetFromMatrix(countData=raw_counts[, c(10,11,12,13,14,15)], colData, design = ~ condition)
+colData(dds_C_t4t3)$condition <- relevel(colData(dds_C_t4t3)$condition, ref="C_t3")
+## Estimate size factors
+dds_C_t4t3 <- estimateSizeFactors(dds_C_t4t3)
+```
+
+
+```{r, eval=FALSE}
+dim(counts(dds_C_t4t3))
+head(counts(dds_C_t4t3))
+summary(counts(dds_C_t4t3))
+```
+
+```{r}
+# la fonction DeSeq() effectue la normalisatiion et l'analyse différentielle en une seul étape
+dif.dds_C_t4t3 <- DESeq(dds_C_t4t3)
+# head(counts(dif.dds, normalized =TRUE), n=3)
+# details<-mcols(dif.dds, use.names = T)
+# head(details, n=3)
+```
+
+```{r}
+# res_C_t4vst3 contient les résultats de l'analyse différentielle pour la variable C_t4 vs C_t3
+res_C_t4vst3 <- as.data.frame(results(dif.dds_C_t4t3))
+head(res_C_t4vst3, n=2)
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+res_C_t4vst3$positive <- res_C_t4vst3$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+#résumé
+table(res_C_t4vst3$positive)
+
+write.table(res_C_t4vst3, file="results/res_C_t4vst3.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour C_t4 vs C_t3**
+
+```{r}
+table(res_C_t4vst3$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour C_t5 vs C_t4**
+
+```{r}
+resSig_C_t4vst3 <- na.omit(res_C_t4vst3)
+resSig_C_t4vst3 <- resSig_C_t4vst3[resSig_C_t4vst3$padj < 0.05, ]
+resSig_C_t4vst3 <- resSig_C_t4vst3[order(resSig_C_t4vst3$padj),]
+
+write.table(resSig_C_t4vst3, file="results/resSig_C_t4vst3.txt", sep="\t", quote=F, col.names=NA)
+```
+
+### 1.7.10. Diagrammes de Venn
+
+```{r}
+library("limma")
+genes_B_t4vst3 <- res_B_t4vst3$positive == TRUE
+genes_C_t4vst3 <- res_C_t4vst3$positive == TRUE
+diff.B.C.t4t3 <-data.frame(genes_B_t4vst3, genes_C_t4vst3)
+venn.counts <- vennCounts(diff.B.C.t4t3)
+vennDiagram(venn.counts, cex=0.8, main="Gènes différentiels B vs C t4 vs t3")
+```
+
+
+
+```{r}
+genes_B_t5vst4 <- res_B_t5vst4$positive ==TRUE
+genes_C_t5vst4 <- res_C_t5vst4$positive == TRUE
+diff.B.C.t5t4 <-data.frame(genes_B_t5vst4, genes_C_t5vst4)
+venn.counts <- vennCounts(diff.B.C.t5t4)
+vennDiagram(venn.counts, cex=0.8, main="Gènes différentiels B vs C t5 vs t4")
+```
+
+
+
+```{r}
+genes_B_t5vst3 <- res_B_t5vst3$positive ==TRUE
+genes_C_t5vst3 <- res_C_t5vst3$positive == TRUE
+diff.B.C.t5t3 <-data.frame(genes_B_t5vst3, genes_C_t5vst3)
+venn.counts <- vennCounts(diff.B.C.t5t3)
+vennDiagram(venn.counts, cex=0.8, main="Gènes différentiels B vs C t5 vs t3")
+```
+
+
+
+
+
+
+### 1.7.11. Génération de la table de comptage normalisée et analyse différentielle avec DESeq2 pour les CDS + short CDS
+
+
+La normalisation  des données  de comptage  est effectuée par la méthode "effective library size".
+
+
+### Chargement de la table descriptive des échantillons (metadata)
+
+```{r, eval=FALSE}
+metadata <- read.csv(file = file.path(dir["RNA"], "metadata.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1)
+#dim(metadat)
+#names(metadata)
+#head(metadata)
+#class(metadata)
+```
+
+
+### Vérification de la table d'expression (raw_counts_complete) et de la table descriptive (triée en metadata_order)
+
+```{r}
+table(rownames(metadata)==colnames(raw_counts_complete))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+#head(datTraits)
+```
+
+```{r}
+metadata_order <- metadata[order(metadata$classe),] # tri en fonction de la colonne ID
+```
+
+```{r}
+table(rownames(metadata_order)==colnames(raw_counts_complete))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+
+
+```{r}
+rownames(metadata_order) <- colnames(raw_counts_complete)
+```
+```{r}
+table(rownames(metadata_order)==colnames(raw_counts_complete))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+
+### Construction de l'objet dds avec DESeqDataSetFromMatrix : dds_complete
+
+Un tel objet contient la table de comptage mais également un tableau décrivant le plan d’expérience (nommé colData). Dans ce plan d’expérience, il y a au moins une variable de type facteur : la condition. Il s’agit de la condition biologique qui peut prendre par exemple deux niveaux : « milieu de culture 1 », « milieu de culture 2 ». Il y a également un facteur qui décrit le format de séquençage qui peut prendre deux niveaux : single-read quand on séquence l’ARN d’un seul coté, ou paired-end, quand on séquence des deux cotés.
+
+```{r}
+dds_complete <- DESeqDataSetFromMatrix(countData=raw_counts_complete, colData = metadata_order, design = ~ classe)
+# To perform the median of ratios method of normalization, DESeq2 has a single estimateSizeFactors() function that will generate size factors. We will use the function in the example below, but in a typical RNA-seq analysis this step is automatically performed by the DESeq() function.
+dds_complete <- estimateSizeFactors(dds_complete)
+# By assigning the results back to the dds object we are filling in the slots of the DESeqDataSet object with the appropriate information. We can take a look at the normalization factor applied to each sample using:
+sizeFactors(dds_complete)
+# Now, to retrieve the normalized counts matrix from dds, we use the counts() function and add the argument normalized=TRUE.
+normalized_counts_complete <- counts(dds_complete, normalized=TRUE)
+# We can save this normalized data matrix to file for later use:
+# Number of normalized read counts after correction for library size by DESeq2
+write.table(normalized_counts_complete, file="results/normalized_counts_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+### Qu'est-ce que l'objet dds ?
+
+```{r}
+dim(counts(dds_complete))
+head(counts(dds_complete), n=2)
+summary(counts(dds_complete))
+```
+
+### Visualisation de la normalisation
+
+```{r}
+par(mfrow=c(1,1))
+colSums(counts(dds_complete, normalized = TRUE))
+barplot (colSums(counts(dds_complete,normalized = TRUE)) ,main="profondeur de séquençage après normalisation")
+```
+
+
+```{r}
+NA_rows <- which(is.na(normalized_counts_complete))
+```
+
+
+### Utilisation de la fonction DESeq pour l'analsye différentielle : création de l'objet dds_DESeq_complete
+
+```{r}
+# On appelle la fonction DESeq sur l'objet dds.
+dds_DESeq_complete <- DESeq(dds_complete)
+#The function DESeq runs the following functions in order:
+#dds <- estimateSizeFactors(dds)
+#dds <- estimateDispersions(dds)
+#dds <- nbinomWaldTest(dds)
+```
+
+### Visualiation de la dispersion de l'objet dds_DESeq_complete
+
+La fonction DESeq()  a  effectué une estimation de la dispersion des gènes.
+
+
+```{r}
+# Valeur de dispersion
+disp_complete <- as.data.frame (dispersions(dds_DESeq_complete))
+head(disp_complete, n=3)
+print(summary(disp_complete))
+```
+
+```{r, eval=FALSE}
+#boxplot des valeurs de dispersion
+par(mfrow=c (1 ,1))
+boxplot(sqrt(disp_complete), horizontal=F, las=1, cex =0.5)
+title ("racine carrée de la dispersion calculée par DESeq2" )
+```
+
+**Estimation de la dispersion**
+
+```{r}
+#pdf("estimation_dispersion.pdf", height=5,width=8)
+par(mfrow=c(1,1))
+DESeq2::plotDispEsts(dds_DESeq_complete)
+#dev.off()
+```
+ 
+ 
+**Détails sur les calculs des valeurs de dispersion , tests statistiques et p-value**
+ 
+```{r, eval = FALSE}
+details <- mcols (dds_DESeq_complete , use.names=T)
+head(details, n=2)
+mcols(mcols(dds_DESeq_complete, use.names=T))
+```
+
+
+**Graphique MA−plot: relation entre le comptage moyen d'un gène et son log2 ratio**
+
+Les gènes différentielleemnt exprimés au seuil de 10 % après ajustement des tests multiples par la procédure de Benjamini−Hochberg sont indiqués en rouge. On peut vérifier aussi que la médiane est bien à zéro, sans quoi on observe un biais: les échantillons seraient mal normalisés.
+
+```{r}
+par(mfrow=c(1 ,1))
+DESeq2::plotMA(dds_DESeq_complete)
+```
+
+
+### Utilisation de la fonction contrast pour obtenir les comparaisons 2 à 2 : milieu B
+
+La fonction results permet d'obtenir le résultat de l'analyse différentielle.
+
+#### Analyse pour B_t4 v B_t3
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_B_t4_vs_t3_complete <- results(dds_DESeq_complete, contrast = c("classe", "B_t4", "B_t3"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_B_t4_vs_t3_complete <- as.data.frame(res_B_t4_vs_t3_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_B_t4_vs_t3_complete$positive <- dif_B_t4_vs_t3_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_B_t4_vs_t3_complete, file="results/dif_B_t4_vs_t3_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Distribution des padj pour B_t4 vs B_t3**
+
+On observe une fréquence de plus de 500 padj > 0.05.
+
+```{r}
+par(mfrow = c(1 ,1))
+hist (res_B_t4_vs_t3_complete$padj, breaks =100,  border=" slateblue" ,main="Histogramme des padj pour B_t4 vs B_t3")
+```
+
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour B_t4 vs B_t3**
+
+```{r}
+table(dif_B_t4_vs_t3_complete$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour B_t4 vs B_t3**
+
+```{r}
+dif_B_t4_vs_t3_complete_0.05 <- na.omit(dif_B_t4_vs_t3_complete)
+dif_B_t4_vs_t3_complete_0.05 <- dif_B_t4_vs_t3_complete_0.05 [dif_B_t4_vs_t3_complete_0.05 $padj < 0.05, ]
+dif_B_t4_vs_t3_complete_0.05  <- dif_B_t4_vs_t3_complete_0.05 [order(dif_B_t4_vs_t3_complete_0.05 $padj),]
+
+write.table(dif_B_t4_vs_t3_complete_0.05, file="results/dif_B_t4_vs_t3_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+ 
+
+#### Analyse pour B_t5 v B_t3
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_B_t5_vs_t3_complete <- results(dds_DESeq_complete, contrast = c("classe", "B_t5", "B_t3"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_B_t5_vs_t3_complete <- as.data.frame(res_B_t5_vs_t3_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_B_t5_vs_t3_complete$positive <- dif_B_t5_vs_t3_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_B_t5_vs_t3_complete, file="results/dif_B_t5_vs_t3_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour B_t5 vs B_t3**
+
+```{r}
+table(dif_B_t5_vs_t3_complete$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour B_t5 vs B_t3**
+
+```{r}
+dif_B_t5_vs_t3_complete_0.05 <- na.omit(dif_B_t5_vs_t3_complete)
+dif_B_t5_vs_t3_complete_0.05 <- dif_B_t5_vs_t3_complete_0.05 [dif_B_t5_vs_t3_complete_0.05 $padj < 0.05, ]
+dif_B_t5_vs_t3_complete_0.05  <- dif_B_t5_vs_t3_complete_0.05 [order(dif_B_t5_vs_t3_complete_0.05 $padj),]
+
+write.table(dif_B_t5_vs_t3_complete_0.05, file="results/dif_B_t5_vs_t3_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+#### Analyse pour B_t5 v B_t4
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_B_t5_vs_t4_complete <- results(dds_DESeq_complete, contrast = c("classe", "B_t5", "B_t4"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_B_t5_vs_t4_complete <- as.data.frame(res_B_t5_vs_t4_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_B_t5_vs_t4_complete$positive <- dif_B_t5_vs_t4_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_B_t5_vs_t4_complete, file="results/dif_B_t5_vs_t4_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour B_t5 vs B_t4**
+
+```{r}
+table(dif_B_t5_vs_t4_complete$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour B_t5 vs B_t4**
+
+```{r}
+dif_B_t5_vs_t4_complete_0.05 <- na.omit(dif_B_t5_vs_t4_complete)
+dif_B_t5_vs_t4_complete_0.05 <- dif_B_t5_vs_t4_complete_0.05 [dif_B_t5_vs_t4_complete_0.05 $padj < 0.05, ]
+dif_B_t5_vs_t4_complete_0.05  <- dif_B_t5_vs_t4_complete_0.05 [order(dif_B_t5_vs_t4_complete_0.05 $padj),]
+
+write.table(dif_B_t5_vs_t4_complete_0.05, file="results/dif_B_t5_vs_t4_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+### Utilisation de la fonction contrast pour obtenir les comparaisons 2 à 2 : milieu C
+
+La fonction results permet d'obtenir le résultat de l'analyse différentielle.
+
+#### Analyse pour C_t4 v C_t3
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_C_t4_vs_t3_complete <- results(dds_DESeq_complete, contrast = c("classe", "C_t4", "C_t3"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_C_t4_vs_t3_complete <- as.data.frame(res_C_t4_vs_t3_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_C_t4_vs_t3_complete$positive <- dif_C_t4_vs_t3_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_C_t4_vs_t3_complete, file="results/dif_C_t4_vs_t3_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour C_t4 vs C_t3**
+
+```{r}
+table(dif_C_t4_vs_t3_complete$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour C_t4 vs C_t3**
+
+```{r}
+dif_C_t4_vs_t3_complete_0.05 <- na.omit(dif_C_t4_vs_t3_complete)
+dif_C_t4_vs_t3_complete_0.05 <- dif_C_t4_vs_t3_complete_0.05 [dif_C_t4_vs_t3_complete_0.05 $padj < 0.05, ]
+dif_C_t4_vs_t3_complete_0.05  <- dif_C_t4_vs_t3_complete_0.05 [order(dif_C_t4_vs_t3_complete_0.05 $padj),]
+
+write.table(dif_C_t4_vs_t3_complete_0.05, file="results/dif_C_t4_vs_t3_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+
+#### Analyse pour C_t5 v C_t3
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_C_t5_vs_t3_complete <- results(dds_DESeq_complete, contrast = c("classe", "C_t5", "C_t3"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_C_t5_vs_t3_complete <- as.data.frame(res_C_t5_vs_t3_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_C_t5_vs_t3_complete$positive <- dif_C_t5_vs_t3_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_C_t5_vs_t3_complete, file="results/dif_C_t5_vs_t3_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour C_t5 vs C_t3**
+
+```{r}
+table(dif_C_t5_vs_t3_complete$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour C_t5 vs C_t3**
+
+```{r}
+dif_C_t5_vs_t3_complete_0.05 <- na.omit(dif_C_t5_vs_t3_complete)
+dif_C_t5_vs_t3_complete_0.05 <- dif_C_t5_vs_t3_complete_0.05 [dif_C_t5_vs_t3_complete_0.05 $padj < 0.05, ]
+dif_C_t5_vs_t3_complete_0.05  <- dif_C_t5_vs_t3_complete_0.05 [order(dif_C_t5_vs_t3_complete_0.05 $padj),]
+
+write.table(dif_C_t5_vs_t3_complete_0.05, file="results/dif_C_t5_vs_t3_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+#### Analyse pour C_t5 v C_t4
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_C_t5_vs_t4_complete <- results(dds_DESeq_complete, contrast = c("classe", "C_t5", "C_t4"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_C_t5_vs_t4_complete <- as.data.frame(res_C_t5_vs_t4_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_C_t5_vs_t4_complete$positive <- dif_C_t5_vs_t4_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_C_t5_vs_t4_complete, file="results/dif_C_t5_vs_t4_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Nombre de gènes déclarés différentiellement exprimés à 5 % pour C_t5 vs C_t4**
+
+```{r}
+table(dif_C_t5_vs_t4_complete$padj < 0.05, useNA="always")
+```
+
+**Sélection des gènes déclarés différentiellement exprimés à 5 % dans une table ordonnée par p-value croissante pour C_t5 vs C_t4**
+
+```{r}
+dif_C_t5_vs_t4_complete_0.05 <- na.omit(dif_C_t5_vs_t4_complete)
+dif_C_t5_vs_t4_complete_0.05 <- dif_C_t5_vs_t4_complete_0.05 [dif_C_t5_vs_t4_complete_0.05 $padj < 0.05, ]
+dif_C_t5_vs_t4_complete_0.05  <- dif_C_t5_vs_t4_complete_0.05 [order(dif_C_t5_vs_t4_complete_0.05 $padj),]
+
+write.table(dif_C_t5_vs_t4_complete_0.05, file="results/dif_C_t5_vs_t4_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+### Utilisation de la fonction contrast pour obtenir les comparaisons 2 à 2 : milieu C vs milieu B
+
+#### Temps t3
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_B_C_t3_complete <- results(dds_DESeq_complete, contrast = c("classe", "C_t3", "B_t3"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_B_C_t3_complete <- as.data.frame(res_B_C_t3_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_B_C_t3_complete$positive <- dif_B_C_t3_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_B_C_t3_complete, file="results/dif_B_C_t3_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+table(dif_B_C_t3_complete$padj < 0.05, useNA="always")
+```
+
+
+```{r}
+dif_B_C_t3_complete_0.05 <- na.omit(dif_B_C_t3_complete)
+dif_B_C_t3_complete_0.05 <- dif_B_C_t3_complete_0.05[dif_B_C_t3_complete_0.05 $padj < 0.05, ]
+dif_B_C_t3_complete_0.05  <- dif_B_C_t3_complete_0.05  [order(dif_B_C_t3_complete_0.05 $padj),]
+
+write.table(dif_B_C_t3_complete_0.05 , file="results/dif_B_C_t3_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+dif_B_C_t3_complete_0.05_baseMean100 <- dif_B_C_t3_complete_0.05 [dif_B_C_t3_complete_0.05 $baseMean >= 100, ]
+```
+
+
+```{r}
+dif_B_C_t3_complete_0.05_fold2 <- dif_B_C_t3_complete_0.05 [dif_B_C_t3_complete_0.05 $log2FoldChange <=0.5 | dif_B_C_t3_complete_0.05 $log2FoldChange >= 2, ]
+write.table(dif_B_C_t3_complete_0.05_fold2, file="results/dif_B_C_t3_complete_0.05_fold2 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+dif_B_C_t3_complete_0.05_baseMean100_fold2 <- dif_B_C_t3_complete_0.05_baseMean100 [dif_B_C_t3_complete_0.05_baseMean100 $log2FoldChange <=0.5 | dif_B_C_t3_complete_0.05_baseMean100 $log2FoldChange >= 2, ]
+```
+
+
+#### Temps t4
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_B_C_t4_complete <- results(dds_DESeq_complete, contrast = c("classe", "C_t4", "B_t4"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_B_C_t4_complete <- as.data.frame(res_B_C_t4_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_B_C_t4_complete$positive <- dif_B_C_t4_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_B_C_t4_complete, file="results/dif_B_C_t4_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+table(dif_B_C_t4_complete$padj < 0.05, useNA="always")
+```
+
+
+```{r}
+dif_B_C_t4_complete_0.05 <- na.omit(dif_B_C_t4_complete)
+dif_B_C_t4_complete_0.05 <- dif_B_C_t4_complete_0.05[dif_B_C_t4_complete_0.05 $padj < 0.05, ]
+dif_B_C_t4_complete_0.05  <- dif_B_C_t4_complete_0.05  [order(dif_B_C_t4_complete_0.05 $padj),]
+
+write.table(dif_B_C_t4_complete_0.05 , file="results/dif_B_C_t4_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+dif_B_C_t4_complete_0.05_fold2 <- dif_B_C_t4_complete_0.05 [dif_B_C_t4_complete_0.05 $log2FoldChange <=0.5 | dif_B_C_t4_complete_0.05 $log2FoldChange >= 2, ]
+write.table(dif_B_C_t4_complete_0.05_fold2 , file="results/dif_B_C_t4_complete_0.05_fold2 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+#### Temps t5
+
+
+```{r}
+#The contrast argument of results function is used to extract test results of log2 fold changes of interest :
+res_B_C_t5_complete <- results(dds_DESeq_complete, contrast = c("classe", "C_t5", "B_t5"))
+# on extrait le tableau avec les données log2 fold changes, pavalue, pvalueadj
+dif_B_C_t5_complete <- as.data.frame(res_B_C_t5_complete)
+
+# gènes significativement différentiellement exprimés (TRUE) ou non (FALSE)
+dif_B_C_t5_complete$positive <- dif_B_C_t5_complete$padj < 0.05 # colonne "positive" avec TRUE si pval ajustée < 0.05, sinon FALSE
+
+write.table(dif_B_C_t5_complete, file="results/dif_B_C_t5_complete.txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+table(dif_B_C_t5_complete$padj < 0.05, useNA="always")
+```
+
+
+```{r}
+dif_B_C_t5_complete_0.05 <- na.omit(dif_B_C_t5_complete)
+dif_B_C_t5_complete_0.05 <- dif_B_C_t5_complete_0.05[dif_B_C_t5_complete_0.05 $padj < 0.05, ]
+dif_B_C_t5_complete_0.05  <- dif_B_C_t5_complete_0.05  [order(dif_B_C_t5_complete_0.05 $padj),]
+
+write.table(dif_B_C_t5_complete_0.05 , file="results/dif_B_C_t5_complete_0.05 .txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+dif_B_C_t5_complete_0.05_fold2 <- dif_B_C_t5_complete_0.05 [dif_B_C_t5_complete_0.05 $log2FoldChange <=0.5 | dif_B_C_t5_complete_0.05 $log2FoldChange >= 2, ]
+write.table(dif_B_C_t5_complete_0.05_fold2  , file="results/dif_B_C_t5_complete_0.05_fold2  .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+
+
+#### Sélection des gènes log2FoldChange >= 2 et <=0.05 (à revoir)
+
+```{r}
+dif_B_t5_vs_t3_complete_0.05_fold2 <- dif_B_t5_vs_t3_complete_0.05 [dif_B_t5_vs_t3_complete_0.05 $log2FoldChange <=0.5 | dif_B_t5_vs_t3_complete_0.05 $log2FoldChange >= 2, ]
+
+write.table(dif_B_t5_vs_t3_complete_0.05_fold2  , file="results/dif_B_t5_vs_t3_complete_0.05_fold2  .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+### Diagrammes de Venn pour les gènes 
+
+```{r}
+library("limma")
+genes_C_t5vst4 <- dif_C_t5_vs_t4_complete$positive == TRUE
+genes_B_t5vst4 <- dif_B_t5_vs_t4_complete$positive == TRUE
+diff.B.C.t5vst4 <-data.frame(genes_B_t5vst4, genes_C_t5vst4)
+venn.counts <- vennCounts(diff.B.C.t5vst4)
+vennDiagram(venn.counts, cex=0.8, main="Gènes différentiels B vs C t5 vs t4")
+```
+
+
+
+
+
+
+
+
+```{r}
+library("limma")
+genes_C_t5vst3 <- dif_C_t5_vs_t3_complete$positive == TRUE
+genes_B_t5vst3 <- dif_B_t5_vs_t3_complete$positive == TRUE
+diff.B.C.t5vst3 <-data.frame(genes_B_t5vst3, genes_C_t5vst3)
+venn.counts <- vennCounts(diff.B.C.t5vst3)
+vennDiagram(venn.counts, cex=0.8, main="Gènes différentiels B vs C t5 vs t3")
+```
+
+
+```{r}
+library("limma")
+genes_C_t4vst3 <- dif_C_t4_vs_t3_complete$positive == TRUE
+genes_B_t4vst3 <- dif_B_t4_vs_t3_complete$positive == TRUE
+diff.B.C.t4vst3 <-data.frame(genes_B_t4vst3, genes_C_t4vst3)
+venn.counts <- vennCounts(diff.B.C.t4vst3)
+vennDiagram(venn.counts, cex=0.8, main="Gènes différentiels B vs C t4 vs t3")
+```
+
+
+```{r}
+library("limma")
+genes_B_C_t3 <- dif_B_C_t3_complete$positive == TRUE
+genes_B_C_t4 <- dif_B_C_t4_complete$positive == TRUE
+genes_B_C_t5 <- dif_B_C_t5_complete$positive == TRUE
+diff_B_C_t4vst3 <-data.frame(genes_B_C_t3, genes_B_C_t4, genes_B_C_t5 )
+venn.counts <- vennCounts(diff_B_C_t4vst3 )
+vennDiagram(venn.counts, cex=0.8, main="Gènes différentiels diff_B_C_t5vst4vst3, padj < 0.05")
+```
+
+
+
+
+# 2. Analyse du transcriptome avec WGNCA : analyse complète avec CDS + short CDS
+
+Le package WGCNA utilise des fonctions qui effectuent une **analyse de réseau de corrélation** de grands ensembles de données de grande dimension (ensembles de données RNAseq). Cette approche non biaisée regroupe les gènes exprimés de manière similaire en groupes (appelés «modules») qui sont ensuite corrélés avec des traits quantitatifs ou catégoriels mesurés dans l'expérience. Les modules peuvent être analysés plus en détail à l'aide de GO, KEGG ou KOG, VisANT et Cytoscape. Cette approche va au-delà d'une simple «liste de gènes» et permet de séparer les grands ensembles de données complexes de RNAseq en groupes fonctionnels plus faciles à interpréter.
+
+## 2.1. Chargement des données d'expression
+
+
+### Filtrage des données : élimination des gènes dont le comptage moyen est < à 5
+
+```{r, eval=FALSE}
+#### On ne garde que les gènes avec un comptage moyen supérieur à 5
+count_mean5 <- raw_counts_complete[rowMeans(raw_counts_complete) >=5,]
+```
+
+**Il reste 2429 CDS sur 2888 CDS.**
+
+### Optionnel si nécessaire : élimination des gènes non exprimés
+
+```{r, eval = FALSE}
+# Pourcentage des gènes ayant des comptages nuls par échantillon
+prop.null0 <- apply(count_mean5, 2, function(x) 100*mean(x==0))
+kable((as.data.frame(prop.null0)), 
+      col.names = "% of non-expressed genes", 
+      caption = "Table of percentage of non expressed genes in each sample")
+```
+```{r, eval = FALSE}
+# Elimination des gènes jamais détectés dans aucun des échantillons
+dataExpr <- normalized_counts_mean5[rowSums(normalized_counts_mean5) > 0,]
+str(dataExpr)
+```
+
+### Elimination des gènes qui n'ont pas des counts > 5 dans au moins 9 échantillons sur 18
+
+```{r, eval = FALSE}
+count_mean5more9 <- count_mean5[which(apply(count_mean5[,]>5,1,sum)>9),]
+str(count_mean5more9)
+```
+
+**Il reste 2382 CDS.** 
+
+### Construction de l'objet DESeqDataSet (dds_WGCNA) et de la table d'expression normalisée dataExpr
+
+```{r construction de l'objet dds}
+library(WGCNA)
+dds_WGCNA <- DESeqDataSetFromMatrix(countData=count_mean5more9, colData = metadata_order, design = ~ classe)
+# To perform the median of ratios method of normalization, DESeq2 has a single estimateSizeFactors() function that will generate size factors. We will use the function in the example below, but in a typical RNA-seq analysis this step is automatically performed by the DESeq() function.
+dds_WGCNA  <- estimateSizeFactors(dds_WGCNA)
+# By assigning the results back to the dds object we are filling in the slots of the DESeqDataSet object with the appropriate information. We can take a look at the normalization factor applied to each sample using:
+sizeFactors(dds_WGCNA )
+# Now, to retrieve the normalized counts matrix from dds, we use the counts() function and add the argument normalized=TRUE.
+dataExpr <- counts(dds_WGCNA, normalized=TRUE)
+str(dataExpr)
+```
+
+## 1.2. Vérification s'il y a des gènes ou échantillons avec trop de données manquantes
+
+```{r}
+# Run this to check if there are gene outliers
+# WGCNA needs the data frame to have conditions as rows and genes as columns
+gsg = goodSamplesGenes(t(dataExpr), verbose = 3)
+gsg$allOK 
+```
+**La réponse est TRUE, tous les gènes sont OK.**  
+
+
+### 2.3. Clustering des échantillons
+
+```{r}
+Euclidian.dist <- dist(t(dataExpr), method = "euclidian")
+
+sampleTree <- hclust(Euclidian.dist, method = "ward.D2")
+plot(sampleTree, main="Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2)
+                    
+```
+
+
+**Il n'y a pas d'échantillons outliers.**
+
+
+## 2.4. A tester : Sélection des gènes les plus différentiellement exprimés
+
+Une partie des gènes n'est pas exprimée de manière différentielle entre les échantillons. Ceux-ci doivent être exclus de l'analyse WGCNA, car deux gènes sans variation notable d'expression entre les échantillons seront fortement corrélés. En tant que seuil heuristique, les 5000 gènes les plus variants ont été utilisés dans la plupart des études WGCNA chez les eucaryotes. En détail, l'écart absolu médian (MAD) a été utilisé comme une mesure robuste de la variabilité.
+
+**Il faudrait que je fasse le bilan des gènes qui ne sont jamais différentiellement exprimés entre toutes les conditions.**
+
+```{r, eval = FALSE}
+#transpose matrix to correlate genes in the following
+#WGCNA_matrix = t(dataExpr)[order(apply(t(dataExpr),1,mad), decreasing = T)[1:2382],]
+#str(WGCNA_matrix)
+```
+
+
+```{r}
+WGCNA_matrix = t(dataExpr)
+``` 
+
+
+**La variable WGCNA_matrix contient les données d'expression prêtes à être analysées.**
+
+## 2.5. Chargement de la table descriptive des échantillons
+
+```{r, eval=FALSE}
+metadata <- read.csv(file = file.path(dir["RNA"], "metadata.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1)
+#dim(metadat)
+#names(metadata)
+#head(metadata)
+#class(metadata)
+```
+
+
+### 2.6. Vérification de la table d'expression et de la table descriptive
+
+```{r}
+table(rownames(metadata)==rownames(WGCNA_matrix))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+#head(datTraits)
+```
+
+```{r}
+metadatabis <- metadata[order(metadata$classe),] # tri en fonction de la colonne ID
+```
+
+```{r}
+table(rownames(metadatabis)==rownames(WGCNA_matrix))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+
+
+```{r}
+rownames(metadatabis) <- rownames(WGCNA_matrix)
+```
+```{r}
+table(rownames(metadatabis)==rownames(WGCNA_matrix))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+
+**On garde les colonnes qui intéressent.**
+ 
+ 
+```{r}
+dataTrait <- metadatabis[,c(6,7)]
+```
+```{r}
+time <- c(3,3,3,4,4,4,5,5,5,3,3,3,4,4,4,5,5,5)
+medium <- c(1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2)
+```
+```{r}
+dataTrait$time <- time
+dataTrait$medium <- medium
+```
+```{r}
+kable(dataTrait)
+```
+
+
+**La variable dataTrait contient les données descriptives prêtes à être analysées.**
+
+
+## 2.7. Sélection du soft threshold power
+
+**La méthode WGCNA identifie une puissance à laquelle la matrice de corrélation est élevée pour calculer la matrice de contigüité du réseau, basée sur le critère d'approximation sans échelle.**
+
+Les connexions au sein d'un réseau peuvent être entièrement décrites par la **matrice de contigüité aij "adjacency matrix"**, une matrice N x N dont la composante aij désigne la force de connexion entre les noeuds i et j. La force de connexion est définie par la similarité de co-expression sij. La méthode la plus utilisée définit sij comme la valeur absolue du coefficient de corrélation entre les profils du noeud i et j: sij = |cor(xi, xj)|.
+
+À l'origine, la matrice de similarité de co-expression était transformée en adjacency matrix en utilisant un seuil «dur». Dans ces réseaux de co-expression non pondérés, deux gènes étaient identifiés comme étant liés (aij = 1), si la corrélation absolue entre leurs profils d’expression était supérieure à un seuil «dur» τ. Cependant, ce seuil strict ne reflète pas la mesure de co-expression continue sous-jacente et conduit à une perte significative d'informations. En conséquence, Horvath et ses collègues ont introduit un nouveau cadre pour l'**analyse pondérée de la co-expression génique** (WGCNA). Bin Zhang and Steve Horvath. A general framework for weighted gene co-expression network analysis. In: Statistical applications in genetics and molecular biology 4 (2005), Article17.
+À la base, une contigüité pondérée est définie en élevant la similitude de co-expression à une puissance (seuil «souple»): aij=sβij. Pour **choisir une valeur β appropriée, les auteurs présentent une méthodologie qui évalue la topologie sans échelle du réseau.**
+
+
+```{r}
+#pdf("soft_power_WGCNA.pdf", height=5,width=8)
+# Choose a soft threshold power with the pickSoftThreshold function
+powers = c(c(1:10), seq(from =10, to=30, by=1)) #choosing a set of soft-thresholding powers
+sft = pickSoftThreshold(WGCNA_matrix, powerVector=powers, verbose =5, networkType="signed") #call network topology analysis function
+sizeGrWindow(9,5)
+par(mfrow= c(1,2))
+cex1=0.9
+# dans sft on voit the power (soft-thresholding value), the r2 for the scale independence for each power (we shoot for an r2 higher than 0.8), the mean number of connections each node has at each (mean.k), the median number of connections/node (meadian.k), and the maximum number of connection (max.k).
+
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab= "Soft Threshold (power)", ylab="Scale Free Topology Model Fit, signed R^2", type= "n", main= paste("Scale independence"))
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers, cex=cex1, col="red")
+abline(h=0.8, col="red")
+
+plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab= "Soft Threshold (power)", ylab="Mean Connectivity", type="n", main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1, col="red")
+ 
+#from this plot, we would choose a power (beta value) of 18 because it's the lowest power for which the scale-free topology fit index curve flattens out upon reaching a high value (0.84).
+#dev.off()
+```
+
+
+
+```{r}
+# Choose a soft threshold power
+powers = c(c(1:10), seq(from = 12, to=30, by=2)) #choosing a set of soft-thresholding powers
+sft = pickSoftThreshold(WGCNA_matrix, powerVector=powers, verbose =5, networkType="signed") #call network topology analysis function
+sizeGrWindow(9,5)
+par(mfrow= c(1,2))
+cex1=0.9
+
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab= "Soft Threshold (power)", ylab="Scale Free Topology Model Fit, signed R^2", type= "n", main= paste("Scale independence"))
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers, cex=cex1, col="red")
+abline(h=0.80, col="red")
+
+plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab= "Soft Threshold (power)", ylab="Mean Connectivity", type="n", main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1, col="red")
+ 
+#from this plot, we would choose a power of 18 because it's the lowest power for which the scale free topology index reaches 0.83.
+
+```
+
+
+**Une valeur bêta de 18 est la puissance la plus faible pour laquelle la courbe d'index d'ajustement de topologie sans échelle s'aplatit lorsqu'elle atteint une valeur élevée.**
+
+
+## 2.8. Construction de la matrice de co-expression des gènes et génération des modules
+
+Pour identifier les modules de co-expression, les gènes sont ensuite regroupés en fonction de la mesure de dissimilarité, où les branches du dendrogramme correspondent aux modules. On obtient un dendrogramme des gènes, obtenu par regroupement hiérarchique moyen de liaison. Les modules de co-expression génique sont détectés en appliquant une méthode de coupe de branche.
+
+La relation entre les modules de co-expression identifiés peut être visualisée par un dendrogramme de leurs valeurs propres.
+
+**On indique le softPower selon le résultat précédent.**
+
+**On peut choisir le nombre de gènes minimum par module avec la fonction minModuleSize.**
+
+```{r, echo=FALSE}
+#build a adjacency "correlation" matrix
+enableWGCNAThreads()
+softPower = 18
+adjacency = adjacency(WGCNA_matrix, power = softPower, type = "signed") #specify network type
+head(adjacency)
+ 
+# Construct Networks
+# translate the adjacency matrix into topological overlap matrix and calculate the corresponding dissimilarity:
+TOM = TOMsimilarity(adjacency, TOMType="signed") # specify network type
+dissTOM = 1-TOM
+ 
+# Generate a clustered gene tree
+geneTree = flashClust::hclust(as.dist(dissTOM), method="average")
+
+#plots tree showing how the eigengenes cluster together
+plot(geneTree, xlab="", sub="", main= "Gene Clustering on TOM-based dissimilarity", labels= FALSE, hang=0.04)
+
+#This sets the minimum number of genes to cluster into a module
+minModuleSize = 20 # on peut mettre 30 si on veut des modules de taille plus large
+dynamicMods = cutreeDynamic(dendro= geneTree, distM= dissTOM, deepSplit=2, pamRespectsDendro= FALSE, minClusterSize = minModuleSize)
+dynamicColors= labels2colors(dynamicMods)
+
+# Calcul des eigengenes
+MEList= moduleEigengenes(WGCNA_matrix, colors= dynamicColors,softPower = softPower)
+MEs= MEList$eigengenes
+
+# Calcul de la dissimilarité entre les modules d'eigengenes
+MEDiss= 1-cor(MEs)
+
+# Cluster module eigengenes
+METree= flashClust::hclust(as.dist(MEDiss), method= "average")
+```
+
+
+
+```{r}
+table(dynamicColors)
+```
+
+
+**Il y a 11 modules appelés avec une couleur différente.**
+**Le nombre sous chaque module indique le nombre de gènes en faisant partie.**
+**Chaque gène appartient à un seul module.**
+
+**On peut décider de regrouper des modules ensemble avec l'option MEDissThres. Une coupure à 0.3 correspond à une similarité de 0.70.**
+
+```{r}
+#plots tree showing how the eigengenes cluster together
+plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
+#set a threhold for merging modules. If we do not want to merge: MEDissThres=0.0
+# Now we will see if any of the modules should be merged. I chose a height cut of 0.30, corresponding to a similarity of 0.70 to merge.
+MEDissThres = 0.3
+merge = mergeCloseModules(WGCNA_matrix, dynamicColors, cutHeight= MEDissThres, verbose =3)
+mergedColors = merge$colors
+mergedMEs = merge$newMEs
+abline(h=MEDissThres, col = "red")
+```
+
+
+
+
+
+
+```{r}
+# plot dendrogram with module colors below it
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
+moduleColors = mergedColors
+colorOrder = c("grey", standardColors(50))
+moduleLabels = match(moduleColors, colorOrder)-1
+MEs = mergedMEs
+#INCLUE THE NEXT LINE TO SAVE TO FILE
+#dev.off()
+```
+
+
+
+**According to our cutoff, some modules are merged.**
+**Clustering dendrogram of all genes, with dissimilarities based on topological overlap. Each vertical line represents a single gene. Assigned module colors below.**
+
+
+```{r}
+table(moduleColors)
+```
+
+**Il y a 7 modules appelés avec une couleur différente.**
+
+
+## 1.5. Relation expression des 9 modules de gènes et caractéristiques des échantillons (traits)
+
+On quantifie la similarité de co-expression de tous les modules en se basant sur les eigengenes et on fait un cluster de leur corrélation.
+Une eigengene correspond à la première composante principale d'une "module expression matrix".
+
+
+```{r}
+#Define number of genes and samples
+nGenes = ncol(WGCNA_matrix)
+nSamples = nrow(WGCNA_matrix)
+#Recalculate MEs (module eigengenes) with color labels
+MEs0 = moduleEigengenes(WGCNA_matrix, moduleColors)$eigengenes
+MEs = orderMEs(MEs0)
+moduleTraitCor = cor(MEs, dataTrait, use= "p")
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples)
+```
+
+```{r}
+#display correlations and their p-values
+textMatrix= paste(signif(moduleTraitCor, 2), "\n(",
+                        signif(moduleTraitPvalue, 1), ")", sep= "")
+dim(textMatrix)= dim(moduleTraitCor)
+par(mar= c(6, 8.5, 3, 3))
+```
+
+
+```{r}
+#display the corelation values with a heatmap plot
+labeledHeatmap(Matrix= moduleTraitCor,
+            xLabels= names(dataTrait),
+            yLabels= names(MEs),
+            ySymbols= names(MEs),
+            colorLabels= FALSE,
+            colors= blueWhiteRed(50),
+            textMatrix= textMatrix,
+            setStdMargins= FALSE,
+            cex.text= 0.5,
+            zlim= c(-1,1),
+            main= paste("Module-trait relationships"))
+```
+
+
+**Module-Trait relationships. L'échelle de couleur (rouge-bleu) représente la force de la corrélation entre la valeur propre (eigengene) d'un module et la caractéristique (trait). Les varaibles de catégorie sont en gris et sont marquées NA. Par exemple le module turquoise est hautement significativement corrélé avec le temps (indépendamment du milieu de croissance B ou C. Chaque cellule donne la valeur du coefficient de corrléation de Pearson (R^2) suivie d'une p-value (entre parenthèses).**
+
+
+**Pour extraire les gènes appartenant à un certain module, on utilise la commande : names(WGCNA_matrix)[moduleColors=="brown”]**
+
+
+A lire comme aide :
+https://www.polarmicrobes.org/weighted-gene-correlation-network-analysis-wgcna-applied-to-microbial-communities/
+
+
+## 2.6. Extraction des gènes des modules : table GeneModuleMembership
+
+```{r}
+# extraction liste des gènes de chaque module
+modNames = substring(names(MEs), 3)
+GeneModuleMembership = as.data.frame(cor(WGCNA_matrix, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(GeneModuleMembership), nSamples));
+names(GeneModuleMembership) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="")
+
+write.table(GeneModuleMembership   , file="results/GeneModuleMembership_complete   .txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+head(GeneModuleMembership)
+```
+
+
+## 2.7. Extraction de l'importance de chaque gène pour le caractère temps (the trait "time")
+
+```{r}
+Time = as.data.frame(dataTrait$time);
+names(Time) = "Time"
+
+# extraction signification de chaque gène par rapport au temps (time)
+GeneTraitSignificance = as.data.frame(cor(WGCNA_matrix, Time, use = "p"));
+GSPvalue = as.data.frame(corPvalueStudent(as.matrix(GeneTraitSignificance), nSamples));
+names(GeneTraitSignificance) = paste("GS.", names(Time), sep="");
+names(GSPvalue) = paste("p.GS.", names(Time), sep="")
+
+write.table(GeneTraitSignificance   , file="results/GeneTraitSignificance_complete   .txt", sep="\t", quote=F, col.names=NA)
+```
+```{r}
+head(GeneTraitSignificance)
+```
+
+
+
+
+## 2.8. Tri des modules en fonction de l'importance de leur poids par rapport au temps (time)
+
+
+```{r}
+# Tri par rapport au caractère temps (time)
+modOrder = order(-abs(cor(MEs, time, use = "p")))
+kable(modOrder)
+```
+
+
+## 2.9. Quantification de l'association entre les gènes du module blue (le + important) et le temps (time)
+
+```{r}
+module = "blue"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership[moduleGene, column]),
+abs(GeneTraitSignificance[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+```
+
+
+Ce graphique montre comment l'expression de chaque gène (chaque point bleu est un gène appartenant au module bleu) est corrélée avec 1) le caractère "time" 2) à quel point l'expression du gène est important pour le module. Les gènes qui ont une forte appartenance au module bleu ont tendance à ressortir chaque fois que le module est présent dans les échantillons. Ils sont donc souvent connectés dans les échantillons avec d'autres gènes bleus. Dans ce module bleu, ces hubs (gènes bleus qui sont mis en évidence avec d'autres gènes bleus) sont les plus importants pour prédire le caractère "time".
+
+
+```{r}
+module = "red"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership[moduleGene, column]),
+abs(GeneTraitSignificance[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+```
+
+```{r}
+module = "black"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership[moduleGene, column]),
+abs(GeneTraitSignificance[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+```
+
+
+
+## 1.7. Facultatif : Construction du réseau avec blockwiseModules
+
+```{r, eval = FAlSE}
+net = blockwiseModules(WGCNA_matrix, power = 19,
+                       TOMType = "unsigned", minModuleSize = 20,
+                       reassignThreshold = 0, mergeCutHeight = 0.3,
+                       numericLabels = TRUE, pamRespectsDendro = FALSE,
+                       saveTOMs = TRUE,
+                       saveTOMFileBase = "transcriptomeTOM",
+                       verbose = 3)
+```
+
+### Facultatif : Export dans Cytoscape
+```{r}
+# Convert labels to colors for plotting
+mergedColors = labels2colors(net$color)
+moduleColors = labels2colors(net$color)
+
+# Recalculate topological overlap if needed
+TOM = TOMsimilarityFromExpr(WGCNA_matrix, power = 6);
+# Read in the annotation file
+annot = dataTrait;
+# Select modules
+modules = c("turquoise");
+# Select module probes
+probes = names(WGCNA_matrix)
+inModule = is.finite(match(moduleColors, modules));
+modProbes = probes[inModule];
+modGenes = annot$gene_symbol[match(modProbes, annot$substanceBXH)];
+# Select the corresponding Topological Overlap
+modTOM = TOM[inModule, inModule];
+dimnames(modTOM) = list(modProbes, modProbes)
+# Export the network into edge and node list files Cytoscape can read
+cyt = exportNetworkToCytoscape(modTOM,
+  edgeFile = paste("CytoscapeInput-edges-", paste(modules, collapse="-"), ".txt", sep=""),
+  nodeFile = paste("CytoscapeInput-nodes-", paste(modules, collapse="-"), ".txt", sep=""),
+  weighted = TRUE,
+  threshold = 0.5,
+  nodeNames = modProbes,
+  altNodeNames = modGenes,
+  nodeAttr = moduleColors[inModule]);
+```
+
+
+# 3. Analyse du transcriptome avec WGNCA : analyse seulement avec les CDS (sans les short CDS)
+
+
+## 3.1. Chargement des données d'expression
+
+
+**Filtrage des données : élimination des gènes dont le comptage moyen est < à 5**
+
+```{r, eval=FALSE}
+#### On ne garde que les gènes avec un comptage moyen supérieur à 5
+count_mean <- raw_counts[rowMeans(raw_counts) >=5,]
+```
+
+**Construction de l'objet DESeqDataSet (dds)**
+
+```{r construction de l'objet dds}
+library(WGCNA)
+dds0 <- DESeqDataSetFromMatrix(countData=count_mean, DataFrame(condition=metadata$classe), ~ condition)
+# To perform the median of ratios method of normalization, DESeq2 has a single estimateSizeFactors() function that will generate size factors. We will use the function in the example below, but in a typical RNA-seq analysis this step is automatically performed by the DESeq() function.
+dds0 <- estimateSizeFactors(dds0)
+# By assigning the results back to the dds object we are filling in the slots of the DESeqDataSet object with the appropriate information. We can take a look at the normalization factor applied to each sample using:
+sizeFactors(dds0)
+# Now, to retrieve the normalized counts matrix from dds, we use the counts() function and add the argument normalized=TRUE.
+dataExpr0 <- counts(dds0, normalized=TRUE)
+str(dataExpr0)
+```
+
+**Il reste 2086 CDS sur 2209 CDS dans la variable dataExpr0.**
+
+## 3.2. Vérification s'il y a des gènes ou échantillons avec trop de données manquantes
+
+```{r}
+# Run this to check if there are gene outliers
+# WGCNA needs the data frame to have conditions as rows and genes as columns
+gsg = goodSamplesGenes(t(dataExpr0), verbose = 3)
+gsg$allOK 
+```
+**La réponse est TRUE, tous les gènes sont OK.**  
+
+
+## 3.3. Clustering des échantillons
+
+```{r}
+Euclidian.dist <- dist(t(dataExpr0), method = "euclidian")
+
+sampleTree <- hclust(Euclidian.dist, method = "ward.D2")
+plot(sampleTree, main="Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2)
+                    
+```
+
+## 3.4. Construction de la matrice
+
+```{r, eval = FALSE}
+#transpose matrix to correlate genes in the following
+#WGCNA_matrix0 = t(dataExpr0)[order(apply(t(dataExpr0),1,mad), decreasing = T)[1:2086],]
+```
+
+```{r}
+WGCNA_matrix0 = t(dataExpr0)
+```
+
+
+**La variable WGCNA_matrix0 contient les données d'expression prêtes à être analysées.**
+
+## 3.5. Sélection du soft threshold power
+
+```{r}
+# Choose a soft threshold power with the pickSoftThreshold function
+powers = c(c(1:10), seq(from =10, to=30, by=1)) #choosing a set of soft-thresholding powers
+sft = pickSoftThreshold(WGCNA_matrix0, powerVector=powers, verbose =5, networkType="signed") #call network topology analysis function
+sizeGrWindow(9,5)
+par(mfrow= c(1,2))
+cex1=0.9
+# dans sft on voit the power (soft-thresholding value), the r2 for the scale independence for each power (we shoot for an r2 higher than 0.8), the mean number of connections each node has at each (mean.k), the median number of connections/node (meadian.k), and the maximum number of connection (max.k).
+
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab= "Soft Threshold (power)", ylab="Scale Free Topology Model Fit, signed R^2", type= "n", main= paste("Scale independence"))
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers, cex=cex1, col="red")
+abline(h=0.8, col="red")
+
+plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab= "Soft Threshold (power)", ylab="Mean Connectivity", type="n", main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1, col="red")
+ 
+#from this plot, we would choose a power (beta value) of 19 because it's the lowest power for which the scale-free topology fit index curve flattens out upon reaching a high value (0.83).
+```
+
+## 3.6. Construction de la matrice de co-expression des gènes et génération des modules
+
+Pour identifier les modules de co-expression, les gènes sont ensuite regroupés en fonction de la mesure de dissimilarité, où les branches du dendrogramme correspondent aux modules. On obtient un dendrogramme des gènes, obtenu par regroupement hiérarchique moyen de liaison. Les modules de co-expression génique sont détectés en appliquant une méthode de coupe de branche.
+
+La relation entre les modules de co-expression identifiés peut être visualisée par un dendrogramme de leurs valeurs propres.
+
+**On indique le softPower selon le résultat précédent.**
+
+**On peut choisir le nombre de gènes minimum par module avec la fonction minModuleSize.**
+
+```{r}
+#build a adjacency "correlation" matrix
+enableWGCNAThreads()
+softPower = 19
+adjacency = adjacency(WGCNA_matrix0, power = softPower, type = "signed") #specify network type
+head(adjacency)
+ 
+# Construct Networks
+# translate the adjacency matrix into topological overlap matrix and calculate the corresponding dissimilarity:
+TOM = TOMsimilarity(adjacency, TOMType="signed") # specify network type
+dissTOM = 1-TOM
+ 
+# Generate a clustered gene tree
+geneTree = flashClust::hclust(as.dist(dissTOM), method="average")
+
+#plots tree showing how the eigengenes cluster together
+plot(geneTree, xlab="", sub="", main= "Gene Clustering on TOM-based dissimilarity", labels= FALSE, hang=0.04)
+
+#This sets the minimum number of genes to cluster into a module
+minModuleSize = 20 # on peut mettre 30 si on veut des modules de taille plus large
+dynamicMods = cutreeDynamic(dendro= geneTree, distM= dissTOM, deepSplit=2, pamRespectsDendro= FALSE, minClusterSize = minModuleSize)
+dynamicColors= labels2colors(dynamicMods)
+
+# Calcul des eigengenes
+MEList= moduleEigengenes(WGCNA_matrix0, colors= dynamicColors,softPower = softPower)
+MEs= MEList$eigengenes
+
+# Calcul de la dissimilarité entre les modules d'eigengenes
+MEDiss= 1-cor(MEs)
+
+# Cluster module eigengenes
+METree= flashClust::hclust(as.dist(MEDiss), method= "average")
+```
+
+
+
+```{r}
+#plots tree showing how the eigengenes cluster together
+plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
+#set a threhold for merging modules. If we do not want to merge: MEDissThres=0.0
+# Now we will see if any of the modules should be merged. I chose a height cut of 0.30, corresponding to a similarity of 0.70 to merge.
+MEDissThres = 0.3
+merge = mergeCloseModules(WGCNA_matrix0, dynamicColors, cutHeight= MEDissThres, verbose =3)
+mergedColors = merge$colors
+mergedMEs = merge$newMEs
+abline(h=MEDissThres, col = "red")
+```
+
+
+
+
+```{r}
+# plot dendrogram with module colors below it
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
+moduleColors = mergedColors
+colorOrder = c("grey", standardColors(50))
+moduleLabels = match(moduleColors, colorOrder)-1
+MEs = mergedMEs
+#INCLUE THE NEXT LINE TO SAVE TO FILE
+#dev.off()
+```
+
+## 3.7. Relation expression des 9 modules de gènes et caractéristiques des échantillons (traits)
+
+On quantifie la similarité de co-expression de tous les modules en se basant sur les eigengenes et on fait un cluster de leur corrélation.
+Une eigengene correspond à la première composante principale d'une "module expression matrix".
+
+
+```{r}
+#Define number of genes and samples
+nGenes = ncol(WGCNA_matrix0)
+nSamples = nrow(WGCNA_matrix0)
+#Recalculate MEs (module eigengenes) with color labels
+MEs0 = moduleEigengenes(WGCNA_matrix0, moduleColors)$eigengenes
+MEs = orderMEs(MEs0)
+moduleTraitCor = cor(MEs, dataTrait, use= "p")
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples)
+```
+
+```{r}
+#display correlations and their p-values
+textMatrix= paste(signif(moduleTraitCor, 2), "\n(",
+                        signif(moduleTraitPvalue, 1), ")", sep= "")
+dim(textMatrix)= dim(moduleTraitCor)
+par(mar= c(6, 8.5, 3, 3))
+```
+
+
+```{r}
+#display the corelation values with a heatmap plot
+labeledHeatmap(Matrix= moduleTraitCor,
+            xLabels= names(dataTrait),
+            yLabels= names(MEs),
+            ySymbols= names(MEs),
+            colorLabels= FALSE,
+            colors= blueWhiteRed(50),
+            textMatrix= textMatrix,
+            setStdMargins= FALSE,
+            cex.text= 0.5,
+            zlim= c(-1,1),
+            main= paste("Module-trait relationships"))
+```
+
+## 3.8. Tri des modules en fonction de l'importance de leur poids par rapport au temps (time)
+
+
+```{r}
+# Tri par rapport au caractère temps (time)
+modOrder = order(-abs(cor(MEs, time, use = "p")))
+kable(modOrder)
+```
+
+
+
+## 3.9. Extraction des gènes des modules : table GeneModuleMembership
+
+```{r}
+# extraction liste des gènes de chaque module
+modNames = substring(names(MEs), 3)
+GeneModuleMembership_withoutshort = as.data.frame(cor(WGCNA_matrix, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(GeneModuleMembership_withoutshort), nSamples));
+names(GeneModuleMembership_withoutshort) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="")
+
+write.table(GeneModuleMembership_withoutshort   , file="results/GeneModuleMembership_withoutshort  .txt", sep="\t", quote=F, col.names=NA)
+
+write.table(MMPvalue  , file="results/MMPvalue_withoutshort.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+## 3.10.  Extraction de l'importance de chaque gène pour le caractère temps (the trait "time")
+
+```{r}
+Time = as.data.frame(dataTrait$time);
+names(Time) = "Time"
+
+# extraction signification de chaque gène par rapport au temps (time)
+GeneTraitSignificance_withoutshort = as.data.frame(cor(WGCNA_matrix, Time, use = "p"));
+GSPvalue = as.data.frame(corPvalueStudent(as.matrix(GeneTraitSignificance_withoutshort), nSamples));
+names(GeneTraitSignificance) = paste("GS.", names(Time), sep="");
+names(GSPvalue) = paste("p.GS.", names(Time), sep="")
+
+write.table(GeneTraitSignificance_withoutshort   , file="results/GeneTraitSignificance_withoutshort  .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+## 3.11. Quantification de l'association entre les gènes du module blue (le + important) et le temps (time)
+
+```{r}
+module = "blue"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_withoutshort[moduleGene, column]),
+abs(GeneTraitSignificance[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+```
+
+
+```{r}
+module = "turquoise"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_withoutshort[moduleGene, column]),
+abs(GeneTraitSignificance[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+```
+
+
+
+
+
+
+# 4. Intégration du transcriptome et du protéome avec WGNCA : analyse avec les CDS et les short CDS
+
+Je pars du fichier contenant toutes les données de comptage brutes (CDS + short CDS).
+
+## 4.1. Données d'expression
+
+
+```{r}
+comptage_CDS <- read.table(file = file.path(dir["results"], "raw_counts_complete.txt"), header = TRUE, sep="", stringsAsFactors=FALSE, row.names = 1)
+```
+
+```{r}
+ncol(comptage_CDS) == nrow(metadata_order)
+```
+
+
+
+```{r}
+dds_CDS <- DESeqDataSetFromMatrix(countData=comptage_CDS, colData = metadata_order, design = ~ classe)
+# To perform the median of ratios method of normalization, DESeq2 has a single estimateSizeFactors() function that will generate size factors. We will use the function in the example below, but in a typical RNA-seq analysis this step is automatically performed by the DESeq() function.
+dds_CDS <- estimateSizeFactors(dds_CDS)
+# By assigning the results back to the dds object we are filling in the slots of the DESeqDataSet object with the appropriate information. We can take a look at the normalization factor applied to each sample using:
+sizeFactors(dds_CDS)
+# Now, to retrieve the normalized counts matrix from dds, we use the counts() function and add the argument normalized=TRUE.
+normalized_comptage_CDS <- counts(dds_CDS, normalized=TRUE)
+# We can save this normalized data matrix to file for later use:
+# Number of normalized read counts after correction for library size by DESeq2
+write.table(normalized_comptage_CDS, file="results/normalized_comptage_CDS.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+```{r}
+normalized_comptage_CDS <- t(normalized_comptage_CDS)
+```
+
+## 4.2. Données de protéomique
+
+**Les données protéomiques ont déjà été normalisées.**
+
+Chargement des données de protéomique PC (protéome cytoplasmisque)
+
+```{r}
+proteome_PC <- read.csv(file = file.path(dir["proteome"], "I23_counts_PC_SA.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1)
+```
+
+Chargement des données de protéomique PE (protéome extracellulaire
+
+```{r}
+proteome_PE <- read.csv(file = file.path(dir["proteome"], "I23_counts_PE_SA.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1)
+```
+
+```{r}
+table(rownames(normalized_comptage_CDS)==rownames(proteome_PC))
+```
+
+```{r}
+rownames(normalized_comptage_CDS) <- rownames(proteome_PC)
+```
+```{r}
+table(rownames(normalized_comptage_CDS)==rownames(proteome_PC))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+```{r}
+table(rownames(normalized_comptage_CDS)==rownames(proteome_PE))
+```
+## 4.3. Fusion des tableaux
+
+**La variable data contient les données normalisées prêtes à être analysées.**
+
+```{r}
+data <- cbind(normalized_comptage_CDS,proteome_PC,proteome_PE )
+```
+
+## 4.4. Table descriptive
+
+**La variable dataTrait contient les données descriptives prêtes à être analysées.**
+
+```{r}
+table(rownames(data)==rownames(dataTrait))
+write.table(dataTrait, file="results/dataTrait", sep="\t", quote=F, col.names=NA)
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+
+```{r}
+rownames(data) <- rownames(dataTrait)
+```
+```{r}
+table(rownames(data)==rownames(dataTrait))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+
+## 4.5. Vérification s'il y a des gènes ou échantillons avec trop de données manquantes
+
+
+```{r}
+# Run this to check if there are gene outliers
+# WGCNA needs the data frame to have conditions as rows and genes as columns
+gsg = goodSamplesGenes(data, verbose = 3)
+gsg$allOK 
+```
+
+**La réponse est FALSE.**
+**Il y a 4132 colonnes dans data.**
+
+
+### Elimination des gènes non exprimés
+
+```{r}
+# Pourcentage des gènes ayant des comptages nuls par échantillon
+prop.null0 <- apply(t(data), 2, function(x) 100*mean(x==0))
+kable((as.data.frame(prop.null0)), 
+      col.names = "% of non-expressed genes or proteins", 
+      caption = "Table of percentage of non expressed genes or proteins in each sample")
+```
+
+```{r}
+data_filtre <- data[, colSums(data) >0]
+```
+
+**Il y a 4001 variables dans data_filtre.**
+
+```{r}
+# Run this to check if there are gene outliers
+# WGCNA needs the data frame to have conditions as rows and genes as columns
+gsg = goodSamplesGenes(data_filtre, verbose = 3)
+gsg$allOK 
+```
+
+**La réponse est TRUE.**
+
+## 4.7. Clustering des échantillons
+
+```{r}
+Euclidian.dist <- dist(data_filtre, method = "euclidian")
+sampleTree <- hclust(Euclidian.dist, method = "ward.D2")
+plot(sampleTree, main="Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2)
+                    
+```
+
+
+**La variable data_filtre contient les données d'expression prêtes à être analysées.**
+
+## 4.9. Sélection du soft threshold power
+
+```{r}
+#pdf("plot_softpower.pdf", height=5,width=8)
+# Choose a soft threshold power with the pickSoftThreshold function
+powers = c(c(1:10), seq(from =5, to=30, by=2)) #choosing a set of soft-thresholding powers
+sft = pickSoftThreshold(data_filtre, powerVector=powers, verbose =5, networkType="signed") #call network topology analysis function
+sizeGrWindow(9,5)
+par(mfrow= c(1,2))
+cex1=0.9
+# dans sft on voit the power (soft-thresholding value), the r2 for the scale independence for each power (we shoot for an r2 higher than 0.8), the mean number of connections each node has at each (mean.k), the median number of connections/node (meadian.k), and the maximum number of connection (max.k).
+
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab= "Soft Threshold (power)", ylab="Scale Free Topology Model Fit, signed R^2", type= "n", main= paste("Scale independence"))
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers, cex=cex1, col="red")
+abline(h=0.8, col="red")
+
+plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab= "Soft Threshold (power)", ylab="Mean Connectivity", type="n", main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1, col="red")
+ 
+#from this plot, we would choose a power (beta value) of 17 because it's the lowest power for which the scale-free topology fit index curve flattens out upon reaching a high value (0.95).
+#dev.off()
+```
+
+
+## 4.10. Construction de la matrice de co-expression des gènes et génération des modules
+
+Pour identifier les modules de co-expression, les gènes sont ensuite regroupés en fonction de la mesure de dissimilarité, où les branches du dendrogramme correspondent aux modules. On obtient un dendrogramme des gènes, obtenu par regroupement hiérarchique moyen de liaison. Les modules de co-expression génique sont détectés en appliquant une méthode de coupe de branche.
+
+La relation entre les modules de co-expression identifiés peut être visualisée par un dendrogramme de leurs valeurs propres.
+
+**On indique le softPower selon le résultat précédent.**
+
+**On peut choisir le nombre de gènes minimum par module avec la fonction minModuleSize.**
+
+```{r}
+#build a adjacency "correlation" matrix
+enableWGCNAThreads()
+softPower = 17
+adjacency = adjacency(data_filtre, power = softPower, type = "signed") #specify network type
+head(adjacency)
+ 
+# Construct Networks
+# translate the adjacency matrix into topological overlap matrix and calculate the corresponding dissimilarity:
+TOM = TOMsimilarity(adjacency, TOMType="signed") # specify network type
+dissTOM = 1-TOM
+ 
+# Generate a clustered gene tree
+geneTree = flashClust::hclust(as.dist(dissTOM), method="average")
+
+#plots tree showing how the eigengenes cluster together
+plot(geneTree, xlab="", sub="", main= "Gene Clustering on TOM-based dissimilarity", labels= FALSE, hang=0.04)
+
+#This sets the minimum number of genes to cluster into a module
+minModuleSize = 20 # on peut mettre 30 si on veut des modules de taille plus large
+dynamicMods = cutreeDynamic(dendro= geneTree, distM= dissTOM, deepSplit=2, pamRespectsDendro= FALSE, minClusterSize = minModuleSize)
+dynamicColors= labels2colors(dynamicMods)
+
+# Calcul des eigengenes
+MEList= moduleEigengenes(data_filtre, colors= dynamicColors,softPower = softPower)
+MEs= MEList$eigengenes
+
+# Calcul de la dissimilarité entre les modules d'eigengenes
+MEDiss= 1-cor(MEs)
+
+# Cluster module eigengenes
+METree= flashClust::hclust(as.dist(MEDiss), method= "average")
+```
+
+**Color "grey" is reserved for unassigned genes. Grey : Value of colors designating the improper module.**
+
+
+```{r}
+#pdf("plot_dendogramme_heatmap.pdf", height=5,width=8)
+#set the diagonal of the dissimilarity to NA 
+diag(dissTOM) = NA;
+
+#Visualize the Tom plot. Raise the dissimilarity matrix to a power  to bring out the module structure
+sizeGrWindow(7,7)
+TOMplot(dissTOM^4, geneTree, as.character(dynamicColors))
+#dev.off()
+```
+
+
+```{r}
+#pdf("plot_modules_clustering.pdf", height=5,width=8)
+#plots tree showing how the eigengenes cluster together
+plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
+#set a threhold for merging modules. If we do not want to merge: MEDissThres=0.0
+# Now we will see if any of the modules should be merged. I chose a height cut of 0.30, corresponding to a similarity of 0.70 to merge.
+MEDissThres = 0.3
+merge = mergeCloseModules(data_filtre, dynamicColors, cutHeight= MEDissThres, verbose =3)
+mergedColors = merge$colors
+mergedMEs = merge$newMEs
+abline(h=MEDissThres, col = "red")
+#dev.off()
+```
+
+```{r}
+table(moduleColors)
+```
+
+```{r}
+#pdf("plot_modules_colors.pdf", height=5,width=8)
+#plot dendrogram with module colors below it
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
+moduleColors = mergedColors
+colorOrder = c("grey", standardColors(50))
+moduleLabels = match(moduleColors, colorOrder)-1
+MEs = mergedMEs
+#INCLUE THE NEXT LINE TO SAVE TO FILE
+#dev.off()
+```
+
+
+```{r}
+table(moduleColors)
+```
+
+## 4.10. Relation expression des 10 modules de gènes et caractéristiques des échantillons (traits)
+
+On quantifie la similarité de co-expression de tous les modules en se basant sur les eigengenes et on fait un cluster de leur corrélation.
+Une eigengene correspond à la première composante principale d'une "module expression matrix".
+
+
+```{r}
+#Define number of genes and samples
+nGenes = ncol(data_filtre)
+nSamples = nrow(data_filtre)
+#Recalculate MEs (module eigengenes) with color labels
+MEs0 = moduleEigengenes(data_filtre, moduleColors)$eigengenes
+MEs = orderMEs(MEs0)
+moduleTraitCor = cor(MEs, dataTrait, use= "p")
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples)
+```
+
+```{r}
+#display correlations and their p-values
+textMatrix= paste(signif(moduleTraitCor, 2), "\n(",
+                        signif(moduleTraitPvalue, 1), ")", sep= "")
+dim(textMatrix)= dim(moduleTraitCor)
+par(mar= c(6, 8.5, 3, 3))
+```
+
+```{r}
+#pdf("module_traits.pdf", height=5,width=8)
+#display the corelation values with a heatmap plot
+labeledHeatmap(Matrix= moduleTraitCor,
+            xLabels= names(dataTrait),
+            yLabels= names(MEs),
+            ySymbols= names(MEs),
+            colorLabels= FALSE,
+            colors= blueWhiteRed(50),
+            textMatrix= textMatrix,
+            setStdMargins= FALSE,
+            cex.text= 0.5,
+            zlim= c(-1,1),
+            main= paste("Module-trait relationships"))
+#dev.off()
+```
+
+
+## 4.11. Tri des modules en fonction de l'importance de leur poids par rapport au temps (time)
+
+
+```{r}
+# Tri par rapport au caractère temps (time)
+modOrder = order(-abs(cor(MEs, time, use = "p")))
+kable(modOrder)
+```
+
+
+
+## 4.12. Extraction des gènes des modules : table GeneModuleMembership_data_filtre
+
+```{r}
+# extraction liste des gènes de chaque module
+modNames = substring(names(MEs), 3)
+GeneModuleMembership_data_filtre = as.data.frame(cor(data_filtre, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(GeneModuleMembership_data_filtre), nSamples));
+names(GeneModuleMembership_data_filtre) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="")
+
+write.table(GeneModuleMembership_data_filtre   , file="results/GeneModuleMembership_data_filtre.txt", sep="\t", quote=F, col.names=NA)
+
+write.table(MMPvalue  , file="results/MMPvalue_data_fltre.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Il y a 4001 observations dans le tableau GeneModuleMembership_data. Cela correspond bien au nombre de lignes du fichier data_filtre.**
+
+
+## 4.13.  Extraction de l'importance de chaque gène pour le caractère temps (the trait "time")
+
+```{r}
+Time = as.data.frame(dataTrait$time);
+names(Time) = "Time"
+
+# extraction signification de chaque gène par rapport au temps (time)
+GeneTraitSignificance_data_filtre = as.data.frame(cor(data_filtre, Time, use = "p"));
+GSPvalue = as.data.frame(corPvalueStudent(as.matrix(GeneTraitSignificance_data_filtre), nSamples));
+names(GeneTraitSignificance_data_filtre) = paste("GS.", names(Time), sep="");
+names(GSPvalue) = paste("p.GS.", names(Time), sep="")
+
+write.table(GeneTraitSignificance_data_filtre   , file="results/GeneTraitSignificance_data_filtre  .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+## 4.14. Quantification de l'association entre les gènes du module blue (le + important) et le temps (time)
+
+```{r}
+module = "lightcyan"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data_filtre[moduleGene, column]),
+abs(GeneTraitSignificance_data_filtre[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+```
+
+
+
+```{r}
+#pdf("module_turquoise.pdf", height=5,width=8)
+module = "turquoise"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data_filtre[moduleGene, column]),
+abs(GeneTraitSignificance_data_filtre[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+
+```{r}
+#pdf("module_black.pdf", height=5,width=8)
+module = "black"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data_filtre[moduleGene, column]),
+abs(GeneTraitSignificance_data_filtre[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+
+```{r}
+#pdf("module_grey60.pdf", height=5,width=8)
+module = "grey60"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data_filtre[moduleGene, column]),
+abs(GeneTraitSignificance_data_filtre[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+
+```{r}
+#pdf("module_purple.pdf", height=5,width=8)
+module = "purple"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data_filtre[moduleGene, column]),
+abs(GeneTraitSignificance_data_filtre[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene significance for Time",
+main = paste("Module membership vs. Gene significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+## Extraction des gènes pour chaque module et heatmap de leur profile d'expression
+
+**Color "grey" is reserved for unassigned genes. Grey : Value of colors designating the improper module.** 
+
+```{r}
+gene.names=colnames(data_filtre)
+
+module_colors= setdiff(unique(moduleColors), "grey")
+for (color in module_colors){
+  module=gene.names[which(dynamicColors==color)]
+  
+write.table(module, paste("module_",color, ".txt",sep=""), sep="\t", row.names=FALSE, col.names=FALSE,quote=FALSE)
+}
+```
+
+
+Look at expression patterns of these genes, as they are clustered.
+
+```{r}
+#pdf("expression_pattern_modules_WGCNA.pdf", height=5,width=8)
+module.order <- unlist(tapply(1:ncol(data_filtre),as.factor(dynamicColors),I))
+m<-t(t(data_filtre[,module.order])/apply(data_filtre[,module.order],2,max))
+heatmap(t(m),zlim=c(0,1),col=gray.colors(100),Rowv=NA,Colv=NA,labRow=NA,scale="none",RowSideColors=dynamicColors[module.order])
+#dev.off()
+```
+
+### Importation des données du module turquoise (WGCNA)
+
+
+
+```{r}
+turquoise <- read.csv2("module_turquoise.csv", h=T, sep=";")
+```
+```{r}
+summary(turquoise)
+```
+
+
+```{r}
+list_ID_KO <- read.csv2("List_ID_KO.csv", header = TRUE, sep=",")
+```
+
+```{r}
+gene_function <- read.csv2("Gene_function.csv", h=T, sep=",", row.names = 1)
+```
+
+
+### Ajout de l'identifiant Kegg (KO) 
+
+```{r}
+turquoise_KO <- merge(turquoise, list_ID_KO, by = "ID")
+write.table(turquoise_KO, file="results/turquoise_KO.txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+KO <- turquoise_KO$Kegg
+write.table(KO, file="results/KO.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+
+### Ajout fonction des CDS dans le module turquoise
+
+
+```{r}
+turquoise_function <- merge(turquoise, gene_function, by = "ID", all.x = TRUE)
+write.table(turquoise_function, file="results/turquoise_function.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+
+### Optionnel : Ajout des séquences protéiques dans le module turquoise
+
+```{r}
+#gene_seq_AA <- read.csv2("List_ID_seq_AA.csv", h=T, sep=",")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Importation des données du module grey60 (WGCNA)
+
+```{r}
+grey60 <- read.csv2("module_grey60.csv", h=T, sep=",", row.names = 1)
+summary(grey60)
+```
+
+
+```{r}
+list_ID_KO <- read.csv2("List_ID_KO.csv", header = TRUE, sep=",")
+```
+
+```{r}
+gene_function <- read.csv2("Gene_function.csv", h=T, sep=",", row.names = 1)
+```
+
+
+# Ajout de l'identifiant Kegg (KO) 
+
+```{r}
+grey60_KO <- merge(grey60, list_ID_KO, by = "ID", all.x = TRUE)
+write.table(grey60_KO, file="results/grey60_KO.txt", sep="\t", quote=F, col.names=NA)
+```
+
+# Ajout fonction des CDS dans le module turquoise
+
+
+```{r}
+grey60_function <- merge(grey60, gene_function, by = "ID",  all.x = TRUE)
+write.table(grey60_function, file="results/grey60_function.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+
+### Importation des données du module lightcyan (WGCNA)
+
+```{r}
+lightcyan <- read.csv2("module_lightcyan.csv", h=T, sep=",", row.names = 1)
+summary(lightcyan)
+```
+
+# Ajout de l'identifiant Kegg (KO) 
+
+```{r}
+lightcyan_KO <- merge(lightcyan, list_ID_KO, by = "ID", all.x = TRUE)
+write.table(lightcyan_KO, file="results/lightcyan_KO.txt", sep="\t", quote=F, col.names=NA)
+```
+
+# Ajout fonction des CDS dans le module turquoise
+
+
+```{r}
+lightcyan_function <- merge(lightcyan, gene_function, by = "ID", all.x = TRUE)
+write.table(lightcyan_function, file="results/lightcyan_function.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 5. Intégration du transcriptome et du protéome avec WGNCA : avec les CDS (sans les short CDS)
+
+Le package WGCNA utilise des fonctions qui effectuent une **analyse de réseau de corrélation** de grands ensembles de données de grande dimension (ensembles de données RNAseq). Cette approche non biaisée regroupe les gènes exprimés de manière similaire en groupes (appelés «modules») qui sont ensuite corrélés avec des traits quantitatifs ou catégoriels mesurés dans l'expérience. Les modules peuvent être analysés plus en détail à l'aide de GO, KEGG ou KOG, VisANT et Cytoscape. Cette approche va au-delà d'une simple «liste de gènes» et permet de séparer les grands ensembles de données complexes de RNAseq en groupes fonctionnels plus faciles à interpréter.
+
+
+Je pars du fichier contenant toutes les données de comptage brutes (CDS + short CDS) et j'enlève les dernières lignes coorespondant aux short CDS.
+
+## 5.1. Données d'expression
+```{r}
+comptage_CDS <- raw_counts_complete[1:2209,]
+```
+
+```{r}
+ncol(comptage_CDS) == nrow(metadata_order)
+```
+
+
+
+```{r}
+dds_CDS <- DESeqDataSetFromMatrix(countData=comptage_CDS, colData = metadata_order, design = ~ classe)
+# To perform the median of ratios method of normalization, DESeq2 has a single estimateSizeFactors() function that will generate size factors. We will use the function in the example below, but in a typical RNA-seq analysis this step is automatically performed by the DESeq() function.
+dds_CDS <- estimateSizeFactors(dds_CDS)
+# By assigning the results back to the dds object we are filling in the slots of the DESeqDataSet object with the appropriate information. We can take a look at the normalization factor applied to each sample using:
+sizeFactors(dds_CDS)
+# Now, to retrieve the normalized counts matrix from dds, we use the counts() function and add the argument normalized=TRUE.
+normalized_comptage_CDS <- counts(dds_CDS, normalized=TRUE)
+# We can save this normalized data matrix to file for later use:
+# Number of normalized read counts after correction for library size by DESeq2
+write.table(normalized_comptage_CDS, file="results/normalized_comptage_CDS.txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+```{r}
+normalized_comptage_CDS <- t(normalized_comptage_CDS)
+```
+
+## 5.2. Données de protéomique
+
+**Les données protéomiques ont déjà été normalisées.**
+
+Chargement des données de protéomique PC (protéome cytoplasmisque)
+
+```{r}
+proteome_PC <- read.csv(file = file.path(dir["proteome"], "I23_counts_PC_SA.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1)
+```
+
+Chargement des données de protéomique PE (protéome extracellulaire
+
+```{r}
+proteome_PE <- read.csv(file = file.path(dir["proteome"], "I23_counts_PE_SA.csv"), header = TRUE, sep=";", stringsAsFactors=FALSE, row.names = 1)
+```
+
+```{r}
+table(rownames(normalized_comptage_CDS)==rownames(proteome_PC))
+```
+
+```{r}
+rownames(normalized_comptage_CDS) <- rownames(proteome_PC)
+```
+```{r}
+table(rownames(normalized_comptage_CDS)==rownames(proteome_PC))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+```{r}
+table(rownames(normalized_comptage_CDS)==rownames(proteome_PE))
+```
+## 5.3. Fusion des tableaux
+
+**La variable data contient les données normalisées prêtes à être analysées.**
+
+```{r}
+data <- cbind(normalized_comptage_CDS,proteome_PC,proteome_PE )
+write.table(data , file="results/data  .txt", sep="\t", quote=F, col.names=NA)
+```
+
+## 5.4. Table descriptive
+
+**La variable dataTrait contient les données descriptives prêtes à être analysées.**
+
+```{r}
+table(rownames(data)==rownames(dataTrait))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+
+```{r}
+rownames(data) <- rownames(dataTrait)
+```
+```{r}
+table(rownames(data)==rownames(dataTrait))
+#should return TRUE if datasets align correctly, otherwise your names are out of order
+```
+
+## 5.5. Vérification s'il y a des gènes ou échantillons avec trop de données manquantes
+
+
+
+```{r}
+# Run this to check if there are gene outliers
+# WGCNA needs the data frame to have conditions as rows and genes as columns
+gsg = goodSamplesGenes(data, verbose = 3)
+gsg$allOK 
+```
+
+**La réponse est FALSE.**
+**Il y a 3453 colonnes dans data.**
+
+
+### Elimination des gènes non exprimés
+
+```{r}
+# Pourcentage des gènes ayant des comptages nuls par échantillon
+prop.null0 <- apply(t(data), 2, function(x) 100*mean(x==0))
+kable((as.data.frame(prop.null0)), 
+      col.names = "% of non-expressed genes or proteins", 
+      caption = "Table of percentage of non expressed genes or proteins in each sample")
+```
+
+```{r}
+data_filtre <- data[, colSums(data) >0]
+write.table(data_filtre, file="results/data_filtre  .txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Il y a 3420 variables dans data_filtre.**
+
+```{r}
+# Run this to check if there are gene outliers
+# WGCNA needs the data frame to have conditions as rows and genes as columns
+gsg = goodSamplesGenes(data_filtre, verbose = 3)
+gsg$allOK 
+```
+
+**La réponse est TRUE.**
+
+## 5.6. Clustering des échantillons
+
+```{r}
+Euclidian.dist <- dist(data_filtre, method = "euclidian")
+sampleTree <- hclust(Euclidian.dist, method = "ward.D2")
+plot(sampleTree, main="Sample clustering to detect outliers", sub="", xlab="", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2)
+                    
+```
+
+
+**La variable data_filtre contient les données d'expression prêtes à être analysées.**
+
+## 5.7. Sélection du soft threshold power
+
+**La méthode WGCNA identifie une puissance à laquelle la matrice de corrélation est élevée pour calculer la matrice de contigüité du réseau, basée sur le critère d'approximation sans échelle.**
+
+Les connexions au sein d'un réseau peuvent être entièrement décrites par la **matrice de contigüité aij "adjacency matrix"**, une matrice N x N dont la composante aij désigne la force de connexion entre les noeuds i et j. La force de connexion est définie par la similarité de co-expression sij. La méthode la plus utilisée définit sij comme la valeur absolue du coefficient de corrélation entre les profils du noeud i et j: sij = |cor(xi, xj)|.
+
+À l'origine, la matrice de similarité de co-expression était transformée en adjacency matrix en utilisant un seuil «dur». Dans ces réseaux de co-expression non pondérés, deux gènes étaient identifiés comme étant liés (aij = 1), si la corrélation absolue entre leurs profils d’expression était supérieure à un seuil «dur» τ. Cependant, ce seuil strict ne reflète pas la mesure de co-expression continue sous-jacente et conduit à une perte significative d'informations. En conséquence, Horvath et ses collègues ont introduit un nouveau cadre pour l'**analyse pondérée de la co-expression génique** (WGCNA). Bin Zhang and Steve Horvath. A general framework for weighted gene co-expression network analysis. In: Statistical applications in genetics and molecular biology 4 (2005), Article17.
+À la base, une contigüité pondérée est définie en élevant la similitude de co-expression à une puissance (seuil «souple»): aij=sβij. Pour **choisir une valeur β appropriée, les auteurs présentent une méthodologie qui évalue la topologie sans échelle du réseau.**
+
+
+```{r}
+#pdf("plot_soft_power.pdf", height=5,width=8)
+# Choose a soft threshold power with the pickSoftThreshold function
+powers = c(c(1:10), seq(from =5, to=30, by=2)) #choosing a set of soft-thresholding powers
+sft = pickSoftThreshold(data_filtre, powerVector=powers, verbose =5, networkType="signed") #call network topology analysis function
+sizeGrWindow(9,5)
+par(mfrow= c(1,2))
+cex1=0.9
+# dans sft on voit the power (soft-thresholding value), the r2 for the scale independence for each power (we shoot for an r2 higher than 0.8), the mean number of connections each node has at each (mean.k), the median number of connections/node (meadian.k), and the maximum number of connection (max.k).
+
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab= "Soft Threshold (power)", ylab="Scale Free Topology Model Fit, signed R^2", type= "n", main= paste("Scale independence"))
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers, cex=cex1, col="red")
+abline(h=0.8, col="red")
+
+plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab= "Soft Threshold (power)", ylab="Mean Connectivity", type="n", main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1, col="red")
+ 
+#from this plot, we would choose a power (beta value) of 17 because it's the lowest power for which the scale-free topology fit index curve flattens out upon reaching a high value (0.97).
+#dev.off()
+```
+
+
+## 5.8. Construction de la matrice de co-expression des gènes et génération des modules
+
+Pour identifier les modules de co-expression, les gènes sont ensuite regroupés en fonction de la mesure de dissimilarité, où les branches du dendrogramme correspondent aux modules. On obtient un dendrogramme des gènes, obtenu par regroupement hiérarchique moyen de liaison. Les modules de co-expression génique sont détectés en appliquant une méthode de coupe de branche.
+
+La relation entre les modules de co-expression identifiés peut être visualisée par un dendrogramme de leurs valeurs propres.
+
+**On indique le softPower selon le résultat précédent.**
+
+**On peut choisir le nombre de gènes minimum par module avec la fonction minModuleSize.**
+
+
+
+```{r}
+#build a adjacency "correlation" matrix
+enableWGCNAThreads()
+softPower = 17
+adjacency = adjacency(data_filtre, power = softPower, type = "signed") #specify network type
+head(adjacency)
+ 
+# Construct Networks
+# translate the adjacency matrix into topological overlap matrix and calculate the corresponding dissimilarity:
+# # Turn adjacency into a measure of dissimilarity
+TOM = TOMsimilarity(adjacency, TOMType="signed") # specify network type
+dissTOM = 1-TOM
+ 
+# Generate a clustered gene tree
+geneTree = flashClust::hclust(as.dist(dissTOM), method="average")
+
+#plots tree showing how the eigengenes cluster together
+plot(geneTree, xlab="", sub="", main= "Gene Clustering on TOM-based dissimilarity", labels= FALSE, hang=0.04)
+
+#This sets the minimum number of genes to cluster into a module
+# Module identification using dynamic tree cut
+minModuleSize = 20 # on peut mettre 30 si on veut des modules de taille plus large
+dynamicMods = cutreeDynamic(dendro= geneTree, distM= dissTOM, deepSplit=2, pamRespectsDendro= FALSE, minClusterSize = minModuleSize)
+dynamicColors= labels2colors(dynamicMods)
+
+# Calcul des eigengenes
+MEList= moduleEigengenes(data_filtre, colors= dynamicColors,softPower = softPower)
+MEs= MEList$eigengenes
+
+# Calcul de la dissimilarité entre les modules d'eigengenes
+MEDiss= 1-cor(MEs)
+
+# Cluster module eigengenes
+METree= flashClust::hclust(as.dist(MEDiss), method= "average")
+```
+```{r}
+#the following command gives the module labels and the size of each module. Lable 0 is reserved for unassigned genes
+table(dynamicColors)
+```
+
+**colors : A vector of the same length as the number of probes in data_filtre, giving module color for all probes (genes).**
+
+**Color "grey" is reserved for unassigned genes. Grey : Value of colors designating the improper module.**
+
+
+```{r}
+#pdf("plot_dendogramme_heatmap.pdf", height=5,width=8)
+#set the diagonal of the dissimilarity to NA 
+diag(dissTOM) = NA;
+
+#Visualize the Tom plot. Raise the dissimilarity matrix to a power  to bring out the module structure
+sizeGrWindow(7,7)
+TOMplot(dissTOM^4, geneTree, as.character(dynamicColors))
+#dev.off()
+```
+
+
+**Il y a 18 modules appelés avec une couleur différente.**
+**Le nombre sous chaque module indique le nombre de gènes en faisant partie.**
+**Chaque gène appartient à un seul module.**
+
+**On peut décider de regrouper des modules ensemble avec l'option MEDissThres. Une coupure à 0.3 correspond à une similarité de 0.70.**
+
+```{r}
+#pdf("plot_dendogramme_cutoff.pdf", height=5,width=8)
+#plots tree showing how the eigengenes cluster together
+plot(METree, main= "Clustering of module eigengenes", xlab= "", sub= "")
+#set a threhold for merging modules. If we do not want to merge: MEDissThres=0.0
+# Now we will see if any of the modules should be merged. I chose a height cut of 0.30, corresponding to a similarity of 0.70 to merge.
+MEDissThres = 0.3
+merge = mergeCloseModules(data_filtre, dynamicColors, cutHeight= MEDissThres, verbose =3)
+mergedColors = merge$colors
+mergedMEs = merge$newMEs
+abline(h=MEDissThres, col = "red")
+#dev.off()
+```
+
+
+
+```{r}
+#pdf("plot_dendogramme_modules.pdf", height=5,width=8)
+# plot dendrogram with module colors below it
+plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), dendroLabels= FALSE, hang=0.03, addGuide= TRUE, guideHang=0.05)
+moduleColors = mergedColors
+colorOrder = c("grey", standardColors(50))
+moduleLabels = match(moduleColors, colorOrder)-1
+MEs = mergedMEs
+#dev.off()
+```
+
+
+```{r}
+table(moduleColors)
+write.table(moduleColors , file="results/moduleColors  .txt", sep="\t", quote=F, col.names=NA)
+#str(moduleColors)
+```
+
+
+## 5.9. Relation expression des 9 modules de gènes et caractéristiques des échantillons (traits)
+
+On quantifie la similarité de co-expression de tous les modules en se basant sur les eigengenes et on fait un cluster de leur corrélation.
+Une eigengene correspond à la première composante principale d'une "module expression matrix".
+
+
+```{r}
+#Define number of genes and samples
+nGenes = ncol(data_filtre)
+nSamples = nrow(data_filtre)
+#Recalculate MEs (module eigengenes) with color labels
+MEs0 = moduleEigengenes(data_filtre, moduleColors)$eigengenes
+MEs = orderMEs(MEs0)
+moduleTraitCor = cor(MEs, dataTrait, use= "p")
+moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples)
+```
+
+```{r}
+#display correlations and their p-values
+textMatrix= paste(signif(moduleTraitCor, 2), "\n(",
+                        signif(moduleTraitPvalue, 1), ")", sep= "")
+dim(textMatrix)= dim(moduleTraitCor)
+par(mar= c(6, 8.5, 3, 3))
+```
+
+```{r}
+#pdf("modules_dataTrait.pdf", height=5,width=8)
+#display the corelation values with a heatmap plot
+labeledHeatmap(Matrix= moduleTraitCor,
+            xLabels= names(dataTrait),
+            yLabels= names(MEs),
+            ySymbols= names(MEs),
+            colorLabels= FALSE,
+            colors= blueWhiteRed(50),
+            textMatrix= textMatrix,
+            setStdMargins= FALSE,
+            cex.text= 0.5,
+            zlim= c(-1,1),
+            main= paste("Module-trait relationships"))
+#dev.off()
+```
+
+
+Une partie des gènes n'est pas exprimée de manière différentielle entre les échantillons. Ceux-ci doivent être exclus de l'analyse WGCNA, car deux gènes sans variation notable d'expression entre les échantillons seront fortement corrélés. En tant que seuil heuristique, les 5000 gènes les plus variants ont été utilisés dans la plupart des études WGCNA chez les eucaryotes. En détail, l'écart absolu médian (MAD) a été utilisé comme une mesure robuste de la variabilité.
+
+**Il faudrait que je fasse le bilan des gènes qui ne sont jamais différentiellement exprimés entre toutes les conditions.**
+**Module-Trait relationships. L'échelle de couleur (rouge-bleu) représente la force de la corrélation entre la valeur propre (eigengene) d'un module et la caractéristique (trait). Les varaibles de catégorie sont en gris et sont marquées NA. Par exemple le module turquoise est hautement significativement corrélé avec le temps (indépendamment du milieu de croissance B ou C. Chaque cellule donne la valeur du coefficient de corrélation de Pearson (R^2) suivie d'une p-value (entre parenthèses).**
+
+**GS: gene significance**
+**ME: module membership**
+
+## 5.10. Tri des modules en fonction de l'importance de leur poids par rapport au temps (time)
+
+
+```{r}
+# Tri par rapport au caractère temps (time)
+modOrder_time = order(-abs(cor(MEs, time, use = "p")))
+kable(modOrder_time)
+write.table(modOrder_time , file="results/modOrder_time  .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+
+## 5.11. Extraction des gènes de tous les modules : table GeneModuleMembership_data
+
+
+```{r}
+# extraction liste des gènes de chaque module
+modNames = substring(names(MEs), 3)
+GeneModuleMembership_data = as.data.frame(cor(data_filtre, MEs, use = "p"));
+MMPvalue = as.data.frame(corPvalueStudent(as.matrix(GeneModuleMembership_data), nSamples));
+names(GeneModuleMembership_data) = paste("MM", modNames, sep="");
+names(MMPvalue) = paste("p.MM", modNames, sep="")
+
+
+write.table(modNames   , file="results/modNames  .txt", sep="\t", quote=F, col.names=NA)
+
+write.table(GeneModuleMembership_data   , file="results/GeneModuleMembership_data  .txt", sep="\t", quote=F, col.names=NA)
+
+write.table(MMPvalue  , file="results/MMPvalue.txt", sep="\t", quote=F, col.names=NA)
+```
+
+**Il y a 3420 observations dans le tableau GeneModuleMembership_data. Cela correspond bien au nombre de lignes du fichier data_filtre.**
+
+
+## 5.12.  Extraction de l'importance de chaque gène pour le caractère temps (the trait "time")
+
+```{r}
+Time = as.data.frame(dataTrait$time);
+names(Time) = "Time"
+
+# extraction signification de chaque gène par rapport au temps (time)
+GeneTraitSignificance_time = as.data.frame(cor(data_filtre, Time, use = "p"));
+GSPvalue = as.data.frame(corPvalueStudent(as.matrix(GeneTraitSignificance_time), nSamples));
+names(GeneTraitSignificance_time) = paste("GS.", names(Time), sep="");
+names(GSPvalue) = paste("p.GS.", names(Time), sep="")
+
+write.table(GeneTraitSignificance_time   , file="results/GeneTraitSignificance_time .txt", sep="\t", quote=F, col.names=NA)
+```
+
+
+## 5.13. Quantification de l'association entre les gènes du module green (le + important) et le temps (time)
+
+```{r}
+#pdf("module_membership_green.pdf", height=5,width=8)
+module = "green"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data[moduleGene, column]),
+abs(GeneTraitSignificance_time[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene or protein significance for Time",
+main = paste("Module membership vs. Gene_protein significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+
+
+```{r}
+#pdf("module_membership_turquoise.pdf", height=5,width=8)
+module = "turquoise"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data[moduleGene, column]),
+abs(GeneTraitSignificance_time[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene or protein significance for Time",
+main = paste("Module membership vs. Gene_protein significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+```{r}
+#pdf("module_membership_red.pdf", height=5,width=8)
+module = "red"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data[moduleGene, column]),
+abs(GeneTraitSignificance_time[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene or protein significance for Time",
+main = paste("Module membership vs. Gene_protein significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+
+
+```{r}
+#pdf("module_membership_greenyellow.pdf", height=5,width=8)
+module = "greenyellow"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data[moduleGene, column]),
+abs(GeneTraitSignificance_time[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene or protein significance for Time",
+main = paste("Module membership vs. Gene_protein significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+
+
+
+```{r}
+#pdf("module_membership_black.pdf", height=5,width=8)
+module = "black"
+column = match(module, modNames);
+moduleGene = moduleColors==module;
+sizeGrWindow(7, 7);
+par(mfrow = c(1,1));
+verboseScatterplot(abs(GeneModuleMembership_data[moduleGene, column]),
+abs(GeneTraitSignificance_time[moduleGene, 1]),
+xlab = paste("Module Membership in", module, "module"),
+ylab = "Gene or protein significance for Time",
+main = paste("Module membership vs. Gene_protein significance\n"),
+cex.main = 1.2, cex.lab = 1.2, cex.axis = 1.2, col = module)
+#dev.off()
+```
+
+
+## 5.14. Extraction des gènes pour chaque module et heatmap de leur profile d'expression
+
+**Color "grey" is reserved for unassigned genes. Grey : Value of colors designating the improper module.** 
+
+```{r}
+gene.names=colnames(data_filtre)
+
+module_colors= setdiff(unique(moduleColors), "grey")
+for (color in module_colors){
+  module=gene.names[which(mergedColors==color)]
+  
+write.table(module, paste("module_",color, ".txt",sep=""), sep="\t", row.names=FALSE, col.names=FALSE,quote=FALSE)
+}
+```
+
+
+
+Look at expression patterns of these genes, as they are clustered.
+
+```{r}
+#pdf("expression_pattern_modules_WGCNA.pdf", height=5,width=8)
+module.order <- unlist(tapply(1:ncol(data_filtre),as.factor(dynamicColors),I))
+m<-t(t(data_filtre[,module.order])/apply(data_filtre[,module.order],2,max))
+heatmap(t(m),zlim=c(0,1),col=gray.colors(100),Rowv=NA,Colv=NA,labRow=NA,scale="none",RowSideColors=dynamicColors[module.order])
+#dev.off()
+```
+
+
+We can now look at the module gene listings and try to interpret their functions; for instance using http://amigo.geneontology.org/rte
+
+WGCNA has many more features, such as quantifying module similarity by eigengene correlation, etc. For details, please visit WGCNA website.
+
+
+## 5.15. Tri des modules en fonction de l'importance de leur poids par rapport au milieu (medium)
+
+```{r}
+# Tri par rapport au caractère temps (time)
+modOrder_medium = order(-abs(cor(MEs, medium, use = "p")))
+kable(modOrder_medium)
+write.table(modOrder_medium , file="results/modOrder_medium  .txt", sep="\t", quote=F, col.names=NA)
+```
+
+```{r}
+sessionInfo()
+```
 
 
